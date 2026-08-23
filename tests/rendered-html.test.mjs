@@ -30,12 +30,13 @@ test("server-renders the Oneuldo daily companion", async () => {
 });
 
 test("includes the native macOS companion and offline renderer", async () => {
-  const [main, mate, packageJson, renderer, page] = await Promise.all([
+  const [main, mate, packageJson, renderer, page, styles] = await Promise.all([
     readFile(new URL("../electron/main.cjs", import.meta.url), "utf8"),
     readFile(new URL("../electron/mate.html", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../desktop-ui/main.jsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(main, /alwaysOnTop:\s*true/);
@@ -60,7 +61,15 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /min=\{0\} max=\{50\} step=\{10\}/);
   assert.match(page, /normalizeToTenMinutes/);
   assert.match(page, /modal-scroll-locked/);
+  assert.match(page, /body\.style\.position = "fixed"/);
+  assert.match(page, /shell\.style\.overflow = "hidden"/);
+  assert.match(styles, /overflow-x:clip/);
   assert.match(page, /unfinished-meta/);
+  assert.match(page, /dragOffset/);
+  assert.match(page, /carry: direction === "right"/);
+  assert.match(page, /이번에는 그만하기/);
+  assert.match(page, /오늘 돌아보기 사용법/);
+  assert.match(page, /const totalSteps = 6/);
   assert.match(page, /ArrowLeft/);
   assert.match(page, /ArrowRight/);
   assert.doesNotMatch(page, /period-switch/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, PointerEvent as ReactPointerEvent, RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Goal = {
@@ -270,43 +270,120 @@ function GoalMate({ message, onClick }: { message: string; onClick: () => void }
 }
 
 function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goals: Goal[]; completeCount: number; onUpdate: (id: string, patch: Partial<Goal>) => void; onBack: () => void; onFinish: () => void }) {
-  const unfinished = goals.filter((goal) => !goal.done);
+  const cards = useMemo(() => [...goals.filter((goal) => goal.done).map((goal) => ({ type: "done" as const, goal })), ...goals.filter((goal) => !goal.done).map((goal) => ({ type: "difficult" as const, goal }))], [goals]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [exiting, setExiting] = useState<"left" | "right" | null>(null);
+  const dragStart = useRef(0);
+  const dragOffset = useRef(0);
+  const draggingActive = useRef(false);
+  const activeCard = cards[activeIndex];
+  const reviewComplete = activeIndex >= cards.length;
+
+  const advance = (direction: "left" | "right") => {
+    if (!activeCard || exiting) return;
+    if (activeCard.type === "difficult") onUpdate(activeCard.goal.id, { carry: direction === "right" });
+    setExiting(direction);
+    window.setTimeout(() => {
+      setActiveIndex((current) => current + 1);
+      dragOffset.current = 0;
+      setDragX(0);
+      setExiting(null);
+    }, 240);
+  };
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("button, textarea")) return;
+    dragStart.current = event.clientX;
+    draggingActive.current = true;
+    setDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingActive.current) return;
+    const nextOffset = Math.max(-190, Math.min(190, event.clientX - dragStart.current));
+    dragOffset.current = nextOffset;
+    setDragX(nextOffset);
+  };
+  const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!draggingActive.current) return;
+    draggingActive.current = false;
+    setDragging(false);
+    const finalOffset = Math.max(-190, Math.min(190, event.clientX - dragStart.current));
+    dragOffset.current = finalOffset;
+    if (Math.abs(finalOffset) >= 85) advance(finalOffset < 0 ? "left" : "right");
+    else { dragOffset.current = 0; setDragX(0); }
+  };
+  const handlePointerCancel = () => {
+    draggingActive.current = false;
+    dragOffset.current = 0;
+    setDragging(false);
+    setDragX(0);
+  };
+  const previousCard = () => {
+    if (exiting || activeIndex === 0) return;
+    dragOffset.current = 0;
+    setDragX(0);
+    setActiveIndex((current) => current - 1);
+  };
+
   return (
-    <section className="review-view">
+    <section className="review-view deck-review-view">
       <div className="review-wrap">
         <button className="back-link" type="button" onClick={onBack}>← &nbsp;오늘로 돌아가기</button>
-        <div className="review-heading">
+        <div className="review-heading deck-heading">
           <span className="moon-icon">☾</span>
           <p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date())} · 오늘의 기록</p>
-          <h1>오늘도 고생했어.<br /><em>해낸 일부터</em> 같이 볼까?</h1>
+          <h1>카드를 넘기며<br /><em>오늘을 가볍게</em> 돌아봐요.</h1>
         </div>
 
-        <div className="review-grid">
-          <article className="review-card success-card">
-            <div className="section-title"><span>✨</span><div><p>오늘 해낸 일</p><strong>{completeCount}가지나 앞으로 나아갔어</strong></div></div>
-            <ul>{goals.filter((goal) => goal.done).map((goal) => <li key={goal.id}><span>✓</span>{goal.title}</li>)}</ul>
-            {!completeCount && <p className="empty-copy">오늘을 돌아보러 온 것도 하나의 기록이야.</p>}
-          </article>
+        <div className="review-stage">
+          <div className="review-progress" aria-live="polite">
+            <div><span style={{ width: `${cards.length ? Math.min(activeIndex, cards.length) / cards.length * 100 : 100}%` }} /></div>
+            <strong>{reviewComplete ? "돌아보기 완료" : `${activeIndex + 1} / ${cards.length}`}</strong>
+          </div>
 
-          {unfinished.map((goal) => (
-            <article className="review-card reflection-card" key={goal.id}>
-              <div className="section-title"><span>☼</span><div><p>오늘 하기 어려웠던 일</p><strong>{goal.title}</strong></div></div>
-              <p className="question">오늘은 왜 하기 어려웠을까?</p>
-              <div className="reason-chips">
-                {REASONS.map((reason) => <button className={goal.reason === reason ? "selected" : ""} type="button" key={reason} onClick={() => onUpdate(goal.id, { reason })}>{reason}</button>)}
-              </div>
-              <textarea value={goal.note || ""} onChange={(event) => onUpdate(goal.id, { note: event.target.value })} placeholder="이유를 한 줄로 남겨보세요 (선택)" aria-label={`${goal.title} 회고`} />
-              <div className="carry-row">
-                <div><strong>이 목표는 어떻게 할까?</strong><span>선택해도, 그냥 두어도 괜찮아.</span></div>
-                <div className="segmented">
-                  <button className={goal.carry === true ? "selected" : ""} type="button" onClick={() => onUpdate(goal.id, { carry: true })}>내일 다시 하기</button>
-                  <button className={goal.carry === false ? "selected" : ""} type="button" onClick={() => onUpdate(goal.id, { carry: false })}>이번에는 그만하기</button>
+          {!reviewComplete && activeCard && <div className="review-card-stack" aria-label={`${activeIndex + 1}번째 회고 카드`}>
+            <div className="stack-sheet back" aria-hidden="true" /><div className="stack-sheet middle" aria-hidden="true" />
+            <article
+              className={`review-card review-deck-card ${activeCard.type === "done" ? "done-swipe-card" : "difficult-swipe-card"} ${dragging ? "is-dragging" : ""} ${exiting ? `exit-${exiting}` : ""}`}
+              style={!exiting ? { transform: `translateX(${dragX}px) rotate(${dragX / 38}deg)` } : undefined}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerEnd}
+              onPointerCancel={handlePointerCancel}
+            >
+              <span className="drag-choice left" style={{ opacity: Math.max(0, -dragX / 90) }}>{activeCard.type === "difficult" ? "그만하기" : "확인했어요"}</span>
+              <span className="drag-choice right" style={{ opacity: Math.max(0, dragX / 90) }}>{activeCard.type === "difficult" ? "내일 다시 하기" : "확인했어요"}</span>
+
+              {activeCard.type === "done" ? <>
+                <div className="review-card-kind done"><span>✓</span><div><small>오늘 해낸 일</small><strong>{completeCount}가지 중 {goals.filter((goal) => goal.done).findIndex((goal) => goal.id === activeCard.goal.id) + 1}번째</strong></div></div>
+                <div className="done-card-center"><span>✨</span><h2>{activeCard.goal.title}</h2><p>오늘 분명히 앞으로 나아간 순간이에요.</p></div>
+                <p className="swipe-help">← 어느 방향으로든 넘겨 다음 카드 보기 →</p>
+              </> : <>
+                <div className="review-card-kind difficult"><span>☼</span><div><small>오늘 하기 어려웠던 일</small><strong>마음을 가볍게 정리해봐요</strong></div></div>
+                <h2 className="review-task-title">{activeCard.goal.title}</h2>
+                <p className="question">오늘은 왜 하기 어려웠을까요?</p>
+                <div className="reason-chips">
+                  {REASONS.map((reason) => <button className={activeCard.goal.reason === reason ? "selected" : ""} type="button" key={reason} onClick={() => onUpdate(activeCard.goal.id, { reason })}>{reason}</button>)}
                 </div>
-              </div>
+                <textarea value={activeCard.goal.note || ""} onChange={(event) => onUpdate(activeCard.goal.id, { note: event.target.value })} placeholder="이유를 한 줄로 남겨보세요 (선택)" aria-label={`${activeCard.goal.title} 회고`} />
+                <div className="swipe-decisions"><button type="button" className="stop" onClick={() => advance("left")}><span>←</span> 이번에는 그만하기</button><button type="button" className="carry" onClick={() => advance("right")}>내일 다시 하기 <span>→</span></button></div>
+              </>}
             </article>
-          ))}
+          </div>}
+
+          {reviewComplete && <article className="review-card review-complete-card">
+            <span className="complete-mate" aria-hidden="true">•ᴗ•</span>
+            <p>오늘의 카드 정리 완료</p>
+            <h2>{completeCount ? `${completeCount}가지나 해낸 오늘을 기억할게요.` : "오늘을 돌아본 것만으로도 충분해요."}</h2>
+            <span>선택한 내용은 내 기록에 차분히 남겨둘게요.</span>
+            <button className="finish-review" type="button" onClick={onFinish}>오늘의 기록 남기기 <b>→</b></button>
+          </article>}
+
+          <div className="review-stage-nav"><button type="button" onClick={previousCard} disabled={activeIndex === 0 || Boolean(exiting)}>← 이전 카드</button>{!reviewComplete && activeCard?.type === "done" && <button type="button" onClick={() => advance("right")}>다음 카드 →</button>}</div>
         </div>
-        <button className="finish-review" type="button" onClick={onFinish}>오늘의 기록 남기기 <span>→</span></button>
       </div>
     </section>
   );
@@ -335,11 +412,11 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
             <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>오늘도 꽤 잘했어.</h2></div><span className="mini-mate">•ᴗ•</span></div>
             <div className="record-section"><p>✨ 오늘 해낸 일</p><ul>{selected.done.map((item) => <li key={item}><span>✓</span>{item}</li>)}</ul></div>
             {!!selected.unfinished.length && <div className="record-section unfinished">
-              <p className="unfinished-heading"><span aria-hidden="true">↗</span>다음으로 미룬 일 <em>{selected.unfinished.length}</em></p>
+              <p className="unfinished-heading"><span aria-hidden="true">↗</span>오늘 하기 어려웠던 일 <em>{selected.unfinished.length}</em></p>
               <div className="unfinished-list">{selected.unfinished.map((item) => <article className="unfinished-item" key={item.title}>
                 <span className="unfinished-mark" aria-hidden="true">○</span>
                 <div className="unfinished-copy"><strong>{item.title}</strong>{item.note && <q>{item.note}</q>}</div>
-                <div className="unfinished-meta"><span>{item.reason}</span>{item.carry && <em>↗ 내일 이어하기</em>}</div>
+                <div className="unfinished-meta"><span>{item.reason}</span><em className={item.carry ? "carry" : "stop"}>{item.carry ? "↗ 내일 이어하기" : "✓ 이번에는 그만하기"}</em></div>
               </article>)}</div>
             </div>}
             <blockquote><span>“</span>{selected.note}<small>— 네 목표 메이트가</small></blockquote>
@@ -350,11 +427,45 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
   );
 }
 
-function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settings: Settings; onChange: (value: Settings) => void; onClose: () => void; onRestartGuide: () => void }) {
+function useDocumentScrollLock() {
   useEffect(() => {
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const root = document.documentElement;
+    const shell = document.querySelector<HTMLElement>(".app-shell");
+    const shellScrollTop = shell?.scrollTop || 0;
+    const previous = { position: body.style.position, top: body.style.top, left: body.style.left, right: body.style.right, width: body.style.width, overflow: body.style.overflow, paddingRight: body.style.paddingRight, scrollBehavior: root.style.scrollBehavior };
+    const previousShell = shell ? { overflow: shell.style.overflow, overscrollBehavior: shell.style.overscrollBehavior } : null;
+    const scrollbarWidth = window.innerWidth - root.clientWidth;
     document.documentElement.classList.add("modal-scroll-locked");
-    return () => document.documentElement.classList.remove("modal-scroll-locked");
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    if (shell) {
+      shell.style.overflow = "hidden";
+      shell.style.overscrollBehavior = "none";
+    }
+    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
+    return () => {
+      document.documentElement.classList.remove("modal-scroll-locked");
+      const { scrollBehavior, ...bodyStyles } = previous;
+      Object.assign(body.style, bodyStyles);
+      root.style.scrollBehavior = "auto";
+      window.scrollTo(0, scrollY);
+      root.style.scrollBehavior = scrollBehavior;
+      if (shell && previousShell) {
+        Object.assign(shell.style, previousShell);
+        shell.scrollTop = shellScrollTop;
+      }
+    };
   }, []);
+}
+
+function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settings: Settings; onChange: (value: Settings) => void; onClose: () => void; onRestartGuide: () => void }) {
+  useDocumentScrollLock();
 
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -373,10 +484,11 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
 }
 
 function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; onFinish: (settings: Settings, firstGoal: string) => void; onSkip: () => void }) {
+  useDocumentScrollLock();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState(settings);
   const [firstGoal, setFirstGoal] = useState("");
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   const next = () => setStep((current) => Math.min(totalSteps - 1, current + 1));
   const back = () => setStep((current) => Math.max(0, current - 1));
@@ -413,7 +525,18 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
             <p>목표를 해내면 함께 기뻐하고,<br />힘든 날에는 천천히 해도 괜찮다고 말해줄게요.</p>
           </div>}
 
-          {step === 3 && <div className="guide-step rhythm-step">
+          {step === 3 && <div className="guide-step review-guide-step">
+            <span className="guide-kicker">오늘 돌아보기 사용법</span>
+            <h1 id="onboarding-title">카드를 넘기며<br /><em>오늘을 가볍게 정리해요.</em></h1>
+            <p>해낸 일은 한 번 더 기뻐하고, 어려웠던 일은 내일로 가져갈지 편하게 골라요.</p>
+            <div className="guide-review-demo" aria-label="오늘 돌아보기 카드 사용 방법">
+              <article className="guide-done-card"><small>오늘 해낸 일</small><span>✓</span><strong>작은 성취도 카드로 확인</strong><p>어느 방향으로든 넘겨요</p></article>
+              <article className="guide-difficult-card"><small>오늘 하기 어려웠던 일</small><strong>내 마음에 맞는 방향으로</strong><div><span>← 그만하기</span><i>드래그</i><span>내일 다시 하기 →</span></div></article>
+            </div>
+            <div className="guide-review-tip"><span>☾</span><p><strong>언제 사용하면 좋나요?</strong> 하루를 마칠 때 1분만 투자해도, 해낸 일과 내려놓을 일을 분명하게 구분할 수 있어요.</p></div>
+          </div>}
+
+          {step === 4 && <div className="guide-step rhythm-step">
             <span className="guide-kicker">나의 리듬 알려주기</span>
             <h1 id="onboarding-title">언제 하루를 시작하고<br />돌아보면 좋을까요?</h1>
             <p>알림은 이 두 번만 보낼게요. 언제든 설정에서 바꿀 수 있어요.</p>
@@ -423,7 +546,7 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
             </div>
           </div>}
 
-          {step === 4 && <div className="guide-step ready-step">
+          {step === 5 && <div className="guide-step ready-step">
             <span className="guide-kicker">이제 준비 끝</span>
             <h1 id="onboarding-title">나와 함께할 메이트와<br /><em>첫 목표 하나</em>를 골라봐요.</h1>
             <div className="theme-options guide-themes">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={draft.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => setDraft({ ...draft, theme })}><span className={`mini-guide-mate ${theme}`}><i /><i /></span><strong>{{ coral: "따뜻한 코랄", sage: "차분한 세이지", lavender: "포근한 라벤더" }[theme]}</strong></button>)}</div>
