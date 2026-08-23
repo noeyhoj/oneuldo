@@ -1,7 +1,10 @@
 {
-  "name": "site-creator-vinext-starter",
-  "version": "0.1.0",
+  "name": "oneuldo",
+  "version": "1.0.0",
   "private": true,
+  "description": "해낸 하루를 기억해주는 데스크톱 목표 메이트",
+  "author": "Oneuldo",
+  "main": "electron/main.cjs",
   "engines": {
     "node": ">=22.13.0"
   },
@@ -11,7 +14,10 @@
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "desktop:renderer": "vite build --config vite.desktop.config.mjs",
+    "desktop": "npm run desktop:renderer && electron .",
+    "desktop:dist": "npm run desktop:renderer && electron-builder --mac --arm64"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
@@ -30,6 +36,8 @@
     "@vitejs/plugin-react": "6.0.2",
     "@vitejs/plugin-rsc": "0.5.26",
     "drizzle-kit": "0.31.10",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
     "eslint": "9.39.4",
     "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react": "7.37.5",
@@ -43,5 +51,59 @@
     "vite": "8.0.13",
     "wrangler": "4.92.0"
   },
-  "type": "module"
+  "type": "module",
+  "build": {
+    "appId": "com.oneuldo.desktop",
+    "productName": "오늘도",
+    "afterPack": "./electron/after-pack.cjs",
+    "artifactName": "Oneuldo-${version}-${arch}.${ext}",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "desktop/assets/app-icon.png",
+      "desktop-ui-dist/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "desktop/assets/app-icon.png",
+      "identity": null,
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "오늘도",
+      "backgroundColor": "#F6F2E9",
+      "contents": [
+        {
+          "x": 145,
+          "y": 220,
+          "type": "file"
+        },
+        {
+          "x": 415,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  },
+  "allowScripts": {
+    "electron@43.4.1": true
+  }
 }

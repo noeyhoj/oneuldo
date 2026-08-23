@@ -39,3 +39,6 @@ yarn-error.log*
 /outputs/
 /work/
 *.tsbuildinfo
+/desktop/assets/app-icon.iconset/
+/desktop-ui-dist/
+/release/
