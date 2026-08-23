@@ -328,8 +328,8 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="modal-head"><div><p>나의 리듬에 맞게</p><h2 id="settings-title">설정</h2></div><button type="button" onClick={onClose} aria-label="설정 닫기">×</button></div>
-        <div className="setting-row"><div><strong>하루 시작</strong><span>오늘의 목표를 물어볼게.</span></div><input type="time" value={settings.morning} onChange={(event) => onChange({ ...settings, morning: event.target.value })} /></div>
-        <div className="setting-row"><div><strong>하루 회고</strong><span>해낸 일을 같이 돌아볼게.</span></div><input type="time" value={settings.evening} onChange={(event) => onChange({ ...settings, evening: event.target.value })} /></div>
+        <div className="setting-row"><div><strong>하루 시작</strong><span>오늘의 목표를 물어볼게.</span></div><SoftTimePicker kind="morning" value={settings.morning} onChange={(morning) => onChange({ ...settings, morning })} /></div>
+        <div className="setting-row"><div><strong>하루 회고</strong><span>해낸 일을 같이 돌아볼게.</span></div><SoftTimePicker kind="evening" value={settings.evening} onChange={(evening) => onChange({ ...settings, evening })} /></div>
         <div className="setting-block"><strong>응원 빈도</strong><div className="setting-options">{(["거의 없음", "가끔", "자주"] as Settings["cheer"][]).map((option) => <button className={settings.cheer === option ? "selected" : ""} type="button" key={option} onClick={() => onChange({ ...settings, cheer: option })}>{option}</button>)}</div></div>
         <div className="setting-block"><strong>목표 메이트 색상</strong><div className="theme-options compact">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={settings.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => onChange({ ...settings, theme })}><i className={`theme-swatch ${theme}`} />{{ coral: "코랄", sage: "세이지", lavender: "라벤더" }[theme]}</button>)}</div></div>
         <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
@@ -386,8 +386,8 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
             <h1 id="onboarding-title">언제 하루를 시작하고<br />돌아보면 좋을까요?</h1>
             <p>알림은 이 두 번만 보낼게요. 언제든 설정에서 바꿀 수 있어요.</p>
             <div className="rhythm-grid">
-              <label><span className="rhythm-icon sun">☀</span><div><small>하루 시작</small><strong>오늘의 목표를 물어볼게요</strong></div><input type="time" value={draft.morning} onChange={(event) => setDraft({ ...draft, morning: event.target.value })} /></label>
-              <label><span className="rhythm-icon moon">☾</span><div><small>하루 회고</small><strong>해낸 일을 함께 돌아볼게요</strong></div><input type="time" value={draft.evening} onChange={(event) => setDraft({ ...draft, evening: event.target.value })} /></label>
+              <article className="rhythm-card morning"><span className="rhythm-icon sun">☀</span><div className="rhythm-copy"><small>하루 시작</small><strong>오늘의 목표를 물어볼게요</strong><span>가볍게 하루를 시작할 시간</span></div><SoftTimePicker kind="morning" value={draft.morning} onChange={(morning) => setDraft((current) => ({ ...current, morning }))} showPresets /></article>
+              <article className="rhythm-card evening"><span className="rhythm-icon moon">☾</span><div className="rhythm-copy"><small>하루 회고</small><strong>해낸 일을 함께 돌아볼게요</strong><span>마음을 놓고 하루를 돌아볼 시간</span></div><SoftTimePicker kind="evening" value={draft.evening} onChange={(evening) => setDraft((current) => ({ ...current, evening }))} showPresets /></article>
             </div>
           </div>}
 
@@ -405,6 +405,34 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
           {step < totalSteps - 1 ? <button className="guide-next" type="button" onClick={next}>다음 <span>→</span></button> : <button className="guide-next finish" type="button" onClick={() => onFinish(draft, firstGoal)}>오늘도와 시작하기 <span>→</span></button>}
         </div>
       </section>
+    </div>
+  );
+}
+
+const TIME_PRESETS = {
+  morning: [{ value: "07:30", label: "7:30" }, { value: "08:00", label: "8시" }, { value: "09:00", label: "9시" }, { value: "10:00", label: "10시" }],
+  evening: [{ value: "18:00", label: "6시" }, { value: "20:00", label: "8시" }, { value: "21:30", label: "9:30" }, { value: "22:00", label: "10시" }],
+} as const;
+
+function SoftTimePicker({ kind, value, onChange, showPresets = false }: { kind: "morning" | "evening"; value: string; onChange: (value: string) => void; showPresets?: boolean }) {
+  const [hourValue, minute = "00"] = value.split(":");
+  const hour = Number(hourValue);
+  const period = hour < 12 ? "오전" : "오후";
+  const displayHour = String(((hour + 11) % 12) + 1).padStart(2, "0");
+  const label = kind === "morning" ? "하루 시작 알림 시간" : "하루 회고 알림 시간";
+
+  return (
+    <div className={`soft-time-control ${kind}`}>
+      <label className="soft-time-field">
+        <span className="time-period">{period}</span>
+        <strong>{displayHour}<i>:</i>{minute}</strong>
+        <span className="time-edit" aria-hidden="true">⌄</span>
+        <input type="time" value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} />
+      </label>
+      {showPresets && <div className="time-presets" aria-label={`${label} 빠른 선택`}>
+        <span>{kind === "morning" ? "아침 추천" : "저녁 추천"}</span>
+        {TIME_PRESETS[kind].map((preset) => <button className={value === preset.value ? "selected" : ""} type="button" key={preset.value} onClick={() => onChange(preset.value)}>{preset.label}</button>)}
+      </div>}
     </div>
   );
 }

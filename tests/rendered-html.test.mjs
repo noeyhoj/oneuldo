@@ -50,6 +50,8 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
   assert.match(page, /function OnboardingGuide/);
+  assert.match(page, /function SoftTimePicker/);
+  assert.match(page, /아침 추천/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
   assert.match(main, /theme:\s*todayState\.settings\?\.theme/);
   await access(new URL("../desktop/assets/app-icon.png", import.meta.url));
