@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, Tray, Notification, ipcMain, nativeImage, scre
 const path = require("path");
 const fs = require("fs");
 
-const DEFAULT_SETTINGS = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true };
+const DEFAULT_SETTINGS = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral" };
 const GENTLE_MESSAGES = [
   "천천히 해도 괜찮아.",
   "지금 하고 있는 것도 충분해.",
@@ -139,7 +139,7 @@ function sendMateMessage(message) {
 
 function sendMateStatus() {
   if (!mateWindow || mateWindow.isDestroyed()) return;
-  mateWindow.webContents.send("mate:status", { completed: todayState.completed, total: todayState.total });
+  mateWindow.webContents.send("mate:status", { completed: todayState.completed, total: todayState.total, theme: todayState.settings?.theme || "coral" });
 }
 
 async function syncFromWeb() {

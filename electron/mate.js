@@ -23,8 +23,10 @@ window.oneuldoMate.onMessage((nextMessage) => {
   if (nextMessage.includes("완료") || nextMessage.includes("해냈")) celebrate();
 });
 
-window.oneuldoMate.onStatus(({ completed, total }) => {
+window.oneuldoMate.onStatus(({ completed, total, theme = "coral" }) => {
   statusText.textContent = `${completed}/${total}`;
+  document.body.classList.remove("theme-coral", "theme-sage", "theme-lavender");
+  document.body.classList.add(`theme-${theme}`);
   if (completed > lastCompleted) celebrate();
   lastCompleted = completed;
 });

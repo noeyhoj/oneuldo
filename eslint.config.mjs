@@ -11,6 +11,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     ".next/**",
     "dist/**",
+    "desktop-ui-dist/**",
+    "release/**",
     "out/**",
     "build/**",
     "next-env.d.ts",
@@ -34,6 +36,12 @@ const eslintConfig = defineConfig([
       react: {
         version: "detect",
       },
+    },
+  },
+  {
+    files: ["electron/**/*.cjs"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
 ]);

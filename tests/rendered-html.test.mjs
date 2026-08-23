@@ -30,11 +30,12 @@ test("server-renders the Oneuldo daily companion", async () => {
 });
 
 test("includes the native macOS companion and offline renderer", async () => {
-  const [main, mate, packageJson, renderer] = await Promise.all([
+  const [main, mate, packageJson, renderer, page] = await Promise.all([
     readFile(new URL("../electron/main.cjs", import.meta.url), "utf8"),
     readFile(new URL("../electron/mate.html", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
     readFile(new URL("../desktop-ui/main.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(main, /alwaysOnTop:\s*true/);
@@ -47,6 +48,10 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
+  assert.match(page, /oneuldo-onboarded/);
+  assert.match(page, /function OnboardingGuide/);
+  assert.match(page, /첫 시작 가이드 다시 보기/);
+  assert.match(main, /theme:\s*todayState\.settings\?\.theme/);
   await access(new URL("../desktop/assets/app-icon.png", import.meta.url));
   await access(new URL("../electron/after-pack.cjs", import.meta.url));
   await access(projectRoot);

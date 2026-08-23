@@ -23,6 +23,7 @@ type Settings = {
   evening: string;
   cheer: "거의 없음" | "가끔" | "자주";
   character: boolean;
+  theme: "coral" | "sage" | "lavender";
 };
 
 const REASONS = ["시간이 부족했어요", "우선순위가 바뀌었어요", "생각보다 어려웠어요", "컨디션이 좋지 않았어요"];
@@ -44,7 +45,7 @@ const SAMPLE_RECORDS: DailyRecord[] = [
   { date: dateKey(-1), done: ["PR 작성하기", "운동 30분", "엄마에게 전화하기"], unfinished: [], note: "오늘 세 가지나 앞으로 나아갔어." },
 ];
 
-const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true };
+const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral" };
 
 export default function Home() {
   const [view, setView] = useState<"today" | "review" | "records">("today");
@@ -57,16 +58,38 @@ export default function Home() {
   const [message, setMessage] = useState("이미 하나를 해냈어 ✨");
   const [selectedDate, setSelectedDate] = useState(dateKey(-1));
   const [hydrated, setHydrated] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [onboardingFresh, setOnboardingFresh] = useState(false);
 
+  /* Local storage is an external client-only source, so hydration intentionally updates state here. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const storedGoals = localStorage.getItem("oneuldo-goals");
     const storedRecords = localStorage.getItem("oneuldo-records");
     const storedSettings = localStorage.getItem("oneuldo-settings");
     if (storedGoals) setGoals(JSON.parse(storedGoals));
     if (storedRecords) setRecords(JSON.parse(storedRecords));
-    if (storedSettings) setSettings(JSON.parse(storedSettings));
+    if (storedSettings) setSettings({ ...initialSettings, ...JSON.parse(storedSettings) });
+    const onboarded = localStorage.getItem("oneuldo-onboarded");
+    const hasExistingContent = [storedGoals, storedRecords].some((value) => {
+      if (!value) return false;
+      try {
+        const parsed = JSON.parse(value);
+        return Array.isArray(parsed) && parsed.length > 0;
+      }
+      catch { return false; }
+    });
+    if (!onboarded && !hasExistingContent) {
+      setGoals([]);
+      setRecords([]);
+      setOnboardingFresh(true);
+      setOnboardingOpen(true);
+    } else if (!onboarded) {
+      localStorage.setItem("oneuldo-onboarded", "1");
+    }
     setHydrated(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!hydrated) return;
@@ -122,8 +145,28 @@ export default function Home() {
 
   const selectedRecord = records.find((record) => record.date === selectedDate) || records.at(-1);
 
+  const finishOnboarding = (nextSettings: Settings, firstGoal: string) => {
+    setSettings(nextSettings);
+    const title = firstGoal.trim();
+    if (title) {
+      if (onboardingFresh) setGoals([{ id: crypto.randomUUID(), title, done: false }]);
+      else if (goals.length < 5) setGoals((current) => [...current, { id: crypto.randomUUID(), title, done: false }]);
+    }
+    localStorage.setItem("oneuldo-onboarded", "1");
+    setOnboardingOpen(false);
+    setOnboardingFresh(false);
+    setView("today");
+    setMessage("안녕! 오늘부터 네가 해낸 일을 기억할게 🌿");
+  };
+
+  const skipOnboarding = () => {
+    localStorage.setItem("oneuldo-onboarded", "1");
+    setOnboardingOpen(false);
+    setOnboardingFresh(false);
+  };
+
   return (
-    <main className="app-shell">
+    <main className={`app-shell theme-${settings.theme}`}>
       <header className="topbar">
         <button className="brand" type="button" onClick={() => setView("today")} aria-label="오늘도 홈">
           <span className="brand-mark" aria-hidden="true"><i /><i /></span>
@@ -164,7 +207,7 @@ export default function Home() {
               </div>
               {adding ? (
                 <form className="add-form" onSubmit={addGoal}>
-                  <input autoFocus value={newGoal} maxLength={60} onChange={(event) => setNewGoal(event.target.value)} placeholder="오늘 꼭 하고 싶은 일" aria-label="새 목표" />
+                  <input value={newGoal} maxLength={60} onChange={(event) => setNewGoal(event.target.value)} placeholder="오늘 꼭 하고 싶은 일" aria-label="새 목표" />
                   <button type="submit">추가</button>
                   <button type="button" onClick={() => setAdding(false)}>취소</button>
                 </form>
@@ -183,7 +226,8 @@ export default function Home() {
 
       {view === "records" && <RecordsView records={records} selectedDate={selectedDate} onSelect={setSelectedDate} selected={selectedRecord} />}
 
-      {settingsOpen && <SettingsModal settings={settings} onChange={setSettings} onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && <SettingsModal settings={settings} onChange={setSettings} onClose={() => setSettingsOpen(false)} onRestartGuide={() => { setSettingsOpen(false); setOnboardingFresh(false); setOnboardingOpen(true); }} />}
+      {onboardingOpen && <OnboardingGuide settings={settings} onFinish={finishOnboarding} onSkip={skipOnboarding} />}
     </main>
   );
 }
@@ -279,7 +323,7 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
   );
 }
 
-function SettingsModal({ settings, onChange, onClose }: { settings: Settings; onChange: (value: Settings) => void; onClose: () => void }) {
+function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settings: Settings; onChange: (value: Settings) => void; onClose: () => void; onRestartGuide: () => void }) {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -287,8 +331,79 @@ function SettingsModal({ settings, onChange, onClose }: { settings: Settings; on
         <div className="setting-row"><div><strong>하루 시작</strong><span>오늘의 목표를 물어볼게.</span></div><input type="time" value={settings.morning} onChange={(event) => onChange({ ...settings, morning: event.target.value })} /></div>
         <div className="setting-row"><div><strong>하루 회고</strong><span>해낸 일을 같이 돌아볼게.</span></div><input type="time" value={settings.evening} onChange={(event) => onChange({ ...settings, evening: event.target.value })} /></div>
         <div className="setting-block"><strong>응원 빈도</strong><div className="setting-options">{(["거의 없음", "가끔", "자주"] as Settings["cheer"][]).map((option) => <button className={settings.cheer === option ? "selected" : ""} type="button" key={option} onClick={() => onChange({ ...settings, cheer: option })}>{option}</button>)}</div></div>
-        <label className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></label>
+        <div className="setting-block"><strong>목표 메이트 색상</strong><div className="theme-options compact">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={settings.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => onChange({ ...settings, theme })}><i className={`theme-swatch ${theme}`} />{{ coral: "코랄", sage: "세이지", lavender: "라벤더" }[theme]}</button>)}</div></div>
+        <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
+        <button className="restart-guide" type="button" onClick={onRestartGuide}>✦ &nbsp;첫 시작 가이드 다시 보기</button>
         <button className="save-settings" type="button" onClick={onClose}>이대로 함께하기</button>
+      </section>
+    </div>
+  );
+}
+
+function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; onFinish: (settings: Settings, firstGoal: string) => void; onSkip: () => void }) {
+  const [step, setStep] = useState(0);
+  const [draft, setDraft] = useState(settings);
+  const [firstGoal, setFirstGoal] = useState("");
+  const totalSteps = 5;
+
+  const next = () => setStep((current) => Math.min(totalSteps - 1, current + 1));
+  const back = () => setStep((current) => Math.max(0, current - 1));
+
+  return (
+    <div className={`onboarding-backdrop theme-${draft.theme}`}>
+      <section className="onboarding-dialog" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+        <div className="onboarding-top">
+          <div className="guide-progress" aria-label={`${totalSteps}단계 중 ${step + 1}단계`}>{Array.from({ length: totalSteps }, (_, index) => <i className={index <= step ? "active" : ""} key={index} />)}</div>
+          <button type="button" className="skip-guide" onClick={onSkip}>건너뛰기</button>
+        </div>
+
+        <div className="guide-content" key={step}>
+          {step === 0 && <div className="guide-step empathy-step">
+            <span className="guide-kicker">오늘도의 첫 질문</span>
+            <h1 id="onboarding-title">하루가 끝날 때<br /><em>“오늘 뭐했지?”</em>라는<br />생각이 든 적 있나요?</h1>
+            <div className="feeling-chips"><span>하루 종일 바쁘긴 했는데</span><span>할 일을 다 못한 것만 보이고</span><span>누가 옆에서 잘했다고 해줬으면</span></div>
+          </div>}
+
+          {step === 1 && <div className="guide-step promise-step">
+            <span className="guide-kicker">우리가 기억할 것</span>
+            <h1 id="onboarding-title">하지 못한 일보다<br /><em>당신이 해낸 일을</em><br />먼저 기억할게요.</h1>
+            <div className="promise-card">
+              <div className="promise-muted"><span>○</span><div><small>아직 못한 일</small><s>볼 때마다 자책하기</s></div></div>
+              <div className="promise-highlight"><span>✓</span><div><small>오늘 해낸 일</small><strong>작은 한 가지도 발견하기</strong></div></div>
+            </div>
+          </div>}
+
+          {step === 2 && <div className="guide-step meet-step">
+            <div className="guide-mate" aria-hidden="true"><i className="guide-ear left" /><i className="guide-ear right" /><span className="guide-face"><b className="left" /><b className="right" /><em /></span><span className="guide-paw left" /><span className="guide-paw right" /></div>
+            <div className="guide-speech">“안녕! 앞으로 네가<br />해낸 일들을 내가 기억할게.”</div>
+            <span className="guide-kicker">네 목표 메이트</span>
+            <h1 id="onboarding-title">독촉하지 않고,<br />조용히 같이 있을게요.</h1>
+            <p>목표를 해내면 함께 기뻐하고,<br />힘든 날에는 천천히 해도 괜찮다고 말해줄게요.</p>
+          </div>}
+
+          {step === 3 && <div className="guide-step rhythm-step">
+            <span className="guide-kicker">나의 리듬 알려주기</span>
+            <h1 id="onboarding-title">언제 하루를 시작하고<br />돌아보면 좋을까요?</h1>
+            <p>알림은 이 두 번만 보낼게요. 언제든 설정에서 바꿀 수 있어요.</p>
+            <div className="rhythm-grid">
+              <label><span className="rhythm-icon sun">☀</span><div><small>하루 시작</small><strong>오늘의 목표를 물어볼게요</strong></div><input type="time" value={draft.morning} onChange={(event) => setDraft({ ...draft, morning: event.target.value })} /></label>
+              <label><span className="rhythm-icon moon">☾</span><div><small>하루 회고</small><strong>해낸 일을 함께 돌아볼게요</strong></div><input type="time" value={draft.evening} onChange={(event) => setDraft({ ...draft, evening: event.target.value })} /></label>
+            </div>
+          </div>}
+
+          {step === 4 && <div className="guide-step ready-step">
+            <span className="guide-kicker">이제 준비 끝</span>
+            <h1 id="onboarding-title">나와 함께할 메이트와<br /><em>첫 목표 하나</em>를 골라봐요.</h1>
+            <div className="theme-options guide-themes">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={draft.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => setDraft({ ...draft, theme })}><span className={`mini-guide-mate ${theme}`}><i /><i /></span><strong>{{ coral: "따뜻한 코랄", sage: "차분한 세이지", lavender: "포근한 라벤더" }[theme]}</strong></button>)}</div>
+            <label className="first-goal-field"><span>오늘 꼭 하고 싶은 한 가지</span><input value={firstGoal} maxLength={60} onChange={(event) => setFirstGoal(event.target.value)} placeholder="예: 산책 20분 하기" /></label>
+            <p className="optional-note">첫 목표는 비워두고 나중에 적어도 괜찮아요.</p>
+          </div>}
+        </div>
+
+        <div className="guide-actions">
+          <button className="guide-back" type="button" onClick={back} disabled={step === 0}>← &nbsp;이전</button>
+          {step < totalSteps - 1 ? <button className="guide-next" type="button" onClick={next}>다음 <span>→</span></button> : <button className="guide-next finish" type="button" onClick={() => onFinish(draft, firstGoal)}>오늘도와 시작하기 <span>→</span></button>}
+        </div>
       </section>
     </div>
   );
