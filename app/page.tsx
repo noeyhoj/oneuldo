@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Goal = {
@@ -48,6 +48,15 @@ const SAMPLE_RECORDS: DailyRecord[] = [
 
 const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral" };
 
+const timeToMinutes = (value: string) => {
+  const [hour = "0", minute = "0"] = value.split(":");
+  return Number(hour) * 60 + Number(minute);
+};
+
+const keepTimesInOrder = (settings: Settings): Settings => timeToMinutes(settings.evening) < timeToMinutes(settings.morning)
+  ? { ...settings, evening: settings.morning }
+  : settings;
+
 export default function Home() {
   const [view, setView] = useState<"today" | "review" | "records">("today");
   const [goals, setGoals] = useState<Goal[]>(DEFAULT_GOALS);
@@ -70,7 +79,7 @@ export default function Home() {
     const storedSettings = localStorage.getItem("oneuldo-settings");
     if (storedGoals) setGoals(JSON.parse(storedGoals));
     if (storedRecords) setRecords(JSON.parse(storedRecords));
-    if (storedSettings) setSettings({ ...initialSettings, ...JSON.parse(storedSettings) });
+    if (storedSettings) setSettings(keepTimesInOrder({ ...initialSettings, ...JSON.parse(storedSettings) }));
     const onboarded = localStorage.getItem("oneuldo-onboarded");
     const hasExistingContent = [storedGoals, storedRecords].some((value) => {
       if (!value) return false;
@@ -147,7 +156,7 @@ export default function Home() {
   const selectedRecord = records.find((record) => record.date === selectedDate) || records.at(-1);
 
   const finishOnboarding = (nextSettings: Settings, firstGoal: string) => {
-    setSettings(nextSettings);
+    setSettings(keepTimesInOrder(nextSettings));
     const title = firstGoal.trim();
     if (title) {
       if (onboardingFresh) setGoals([{ id: crypto.randomUUID(), title, done: false }]);
@@ -227,7 +236,7 @@ export default function Home() {
 
       {view === "records" && <RecordsView records={records} selectedDate={selectedDate} onSelect={setSelectedDate} selected={selectedRecord} />}
 
-      {settingsOpen && <SettingsModal settings={settings} onChange={setSettings} onClose={() => setSettingsOpen(false)} onRestartGuide={() => { setSettingsOpen(false); setOnboardingFresh(false); setOnboardingOpen(true); }} />}
+      {settingsOpen && <SettingsModal settings={settings} onChange={(nextSettings) => setSettings(keepTimesInOrder(nextSettings))} onClose={() => setSettingsOpen(false)} onRestartGuide={() => { setSettingsOpen(false); setOnboardingFresh(false); setOnboardingOpen(true); }} />}
       {onboardingOpen && <OnboardingGuide settings={settings} onFinish={finishOnboarding} onSkip={skipOnboarding} />}
     </main>
   );
@@ -329,8 +338,8 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <div className="modal-head"><div><p>나의 리듬에 맞게</p><h2 id="settings-title">설정</h2></div><button type="button" onClick={onClose} aria-label="설정 닫기">×</button></div>
-        <div className="setting-row"><div><strong>하루 시작</strong><span>오늘의 목표를 물어볼게.</span></div><SoftTimePicker kind="morning" value={settings.morning} onChange={(morning) => onChange({ ...settings, morning })} /></div>
-        <div className="setting-row"><div><strong>하루 회고</strong><span>해낸 일을 같이 돌아볼게.</span></div><SoftTimePicker kind="evening" value={settings.evening} onChange={(evening) => onChange({ ...settings, evening })} /></div>
+        <div className="setting-row"><div><strong>하루 시작</strong><span>오늘의 목표를 물어볼게.</span></div><SoftTimePicker kind="morning" value={settings.morning} maxValue={settings.evening} onChange={(morning) => onChange({ ...settings, morning })} /></div>
+        <div className="setting-row"><div><strong>하루 회고</strong><span>해낸 일을 같이 돌아볼게.</span></div><SoftTimePicker kind="evening" value={settings.evening} minValue={settings.morning} onChange={(evening) => onChange({ ...settings, evening })} /></div>
         <div className="setting-block"><strong>응원 빈도</strong><div className="setting-options">{(["거의 없음", "가끔", "자주"] as Settings["cheer"][]).map((option) => <button className={settings.cheer === option ? "selected" : ""} type="button" key={option} onClick={() => onChange({ ...settings, cheer: option })}>{option}</button>)}</div></div>
         <div className="setting-block"><strong>목표 메이트 색상</strong><div className="theme-options compact">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={settings.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => onChange({ ...settings, theme })}><i className={`theme-swatch ${theme}`} />{{ coral: "코랄", sage: "세이지", lavender: "라벤더" }[theme]}</button>)}</div></div>
         <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
@@ -387,8 +396,8 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
             <h1 id="onboarding-title">언제 하루를 시작하고<br />돌아보면 좋을까요?</h1>
             <p>알림은 이 두 번만 보낼게요. 언제든 설정에서 바꿀 수 있어요.</p>
             <div className="rhythm-grid">
-              <article className="rhythm-card morning"><span className="rhythm-icon sun">☀</span><div className="rhythm-copy"><small>하루 시작</small><strong>오늘의 목표를 물어볼게요</strong><span>가볍게 하루를 시작할 시간</span></div><SoftTimePicker kind="morning" value={draft.morning} onChange={(morning) => setDraft((current) => ({ ...current, morning }))} showPresets /></article>
-              <article className="rhythm-card evening"><span className="rhythm-icon moon">☾</span><div className="rhythm-copy"><small>하루 회고</small><strong>해낸 일을 함께 돌아볼게요</strong><span>마음을 놓고 하루를 돌아볼 시간</span></div><SoftTimePicker kind="evening" value={draft.evening} onChange={(evening) => setDraft((current) => ({ ...current, evening }))} showPresets /></article>
+              <article className="rhythm-card morning"><span className="rhythm-icon sun">☀</span><div className="rhythm-copy"><small>하루 시작</small><strong>오늘의 목표를 물어볼게요</strong><span>가볍게 하루를 시작할 시간</span></div><SoftTimePicker kind="morning" value={draft.morning} maxValue={draft.evening} onChange={(morning) => setDraft((current) => keepTimesInOrder({ ...current, morning }))} showPresets /></article>
+              <article className="rhythm-card evening"><span className="rhythm-icon moon">☾</span><div className="rhythm-copy"><small>하루 회고</small><strong>해낸 일을 함께 돌아볼게요</strong><span>마음을 놓고 하루를 돌아볼 시간</span></div><SoftTimePicker kind="evening" value={draft.evening} minValue={draft.morning} onChange={(evening) => setDraft((current) => keepTimesInOrder({ ...current, evening }))} showPresets /></article>
             </div>
           </div>}
 
@@ -415,10 +424,10 @@ const TIME_PRESETS = {
   evening: [{ value: "18:00", label: "18시" }, { value: "19:00", label: "19시" }, { value: "20:00", label: "20시" }, { value: "21:00", label: "21시" }],
 } as const;
 
-function SoftTimePicker({ kind, value, onChange, showPresets = false }: { kind: "morning" | "evening"; value: string; onChange: (value: string) => void; showPresets?: boolean }) {
+function SoftTimePicker({ kind, value, onChange, showPresets = false, minValue, maxValue }: { kind: "morning" | "evening"; value: string; onChange: (value: string) => void; showPresets?: boolean; minValue?: string; maxValue?: string }) {
   const [open, setOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(value);
-  const { period, hour, minute } = timeParts(value);
+  const { hour, minute } = timeParts(value);
   const label = kind === "morning" ? "하루 시작 알림 시간" : "하루 회고 알림 시간";
 
   const openPicker = () => {
@@ -428,8 +437,7 @@ function SoftTimePicker({ kind, value, onChange, showPresets = false }: { kind: 
 
   return (
     <div className={`soft-time-control ${kind}`}>
-      <button className={`soft-time-field ${open ? "is-open" : ""}`} type="button" onClick={openPicker} aria-haspopup="dialog" aria-expanded={open} aria-label={`${label}, ${period} ${hour}시 ${minute}분. 눌러서 변경`}>
-        <span className="time-period">{period}</span>
+      <button className={`soft-time-field ${open ? "is-open" : ""}`} type="button" onClick={openPicker} aria-haspopup="dialog" aria-expanded={open} aria-label={`${label}, ${hour}시 ${minute}분. 눌러서 변경`}>
         <strong>{String(hour).padStart(2, "0")}<i>:</i>{minute}</strong>
         <span className="time-edit" aria-hidden="true"><i /></span>
       </button>
@@ -437,30 +445,33 @@ function SoftTimePicker({ kind, value, onChange, showPresets = false }: { kind: 
         <span>{kind === "morning" ? "시작 추천" : "회고 추천"}</span>
         {TIME_PRESETS[kind].map((preset) => <button className={value === preset.value ? "selected" : ""} type="button" key={preset.value} onClick={() => onChange(preset.value)}>{preset.label}</button>)}
       </div>}
-      {open && createPortal(<TimePickerDialog kind={kind} value={draftValue} onChange={setDraftValue} onCancel={() => setOpen(false)} onConfirm={() => { onChange(draftValue); setOpen(false); }} />, document.body)}
+      {open && createPortal(<TimePickerDialog kind={kind} value={draftValue} minValue={minValue} maxValue={maxValue} onChange={setDraftValue} onCancel={() => setOpen(false)} onConfirm={() => { onChange(draftValue); setOpen(false); }} />, document.body)}
     </div>
   );
 }
 
 function timeParts(value: string) {
   const [hourValue, minute = "00"] = value.split(":");
-  const rawHour = Number(hourValue);
   return {
-    period: rawHour < 12 ? "오전" as const : "오후" as const,
-    hour: ((rawHour + 11) % 12) + 1,
+    hour: Number(hourValue),
     minute,
   };
 }
 
-function valueFromParts(period: "오전" | "오후", hour: number, minute: string) {
-  const rawHour = (hour % 12) + (period === "오후" ? 12 : 0);
-  return `${String(rawHour).padStart(2, "0")}:${minute}`;
+function valueFromParts(hour: number, minute: string) {
+  return `${String(hour).padStart(2, "0")}:${minute}`;
 }
 
-function TimePickerDialog({ kind, value, onChange, onCancel, onConfirm }: { kind: "morning" | "evening"; value: string; onChange: (value: string) => void; onCancel: () => void; onConfirm: () => void }) {
-  const { period, hour, minute } = timeParts(value);
-  const update = (next: Partial<{ period: "오전" | "오후"; hour: number; minute: string }>) => onChange(valueFromParts(next.period ?? period, next.hour ?? hour, next.minute ?? minute));
+function TimePickerDialog({ kind, value, minValue, maxValue, onChange, onCancel, onConfirm }: { kind: "morning" | "evening"; value: string; minValue?: string; maxValue?: string; onChange: (value: string) => void; onCancel: () => void; onConfirm: () => void }) {
+  const { hour, minute } = timeParts(value);
+  const hourWheel = useRef<HTMLDivElement>(null);
+  const minuteWheel = useRef<HTMLDivElement>(null);
+  const update = (next: Partial<{ hour: number; minute: string }>) => onChange(valueFromParts(next.hour ?? hour, next.minute ?? minute));
   const title = kind === "morning" ? "하루 시작 시간" : "하루 회고 시간";
+  const beforeMinimum = minValue !== undefined && timeToMinutes(value) < timeToMinutes(minValue);
+  const afterMaximum = maxValue !== undefined && timeToMinutes(value) > timeToMinutes(maxValue);
+  const invalid = beforeMinimum || afterMaximum;
+  const validationMessage = beforeMinimum ? `회고 시간은 시작 시간(${minValue})보다 빠를 수 없어요.` : afterMaximum ? `시작 시간은 회고 시간(${maxValue})보다 늦을 수 없어요.` : "";
 
   return (
     <div className={`time-dialog-backdrop ${kind}`} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}>
@@ -470,22 +481,21 @@ function TimePickerDialog({ kind, value, onChange, onCancel, onConfirm }: { kind
           <div><small>{kind === "morning" ? "가볍게 시작하는 시간" : "마음을 놓고 돌아보는 시간"}</small><h2 id={`${kind}-time-title`}>{title} 정하기</h2></div>
           <button type="button" onClick={onCancel} aria-label="시간 선택 닫기">×</button>
         </header>
-        <div className="period-switch" aria-label="오전 오후 선택">
-          {(["오전", "오후"] as const).map((option) => <button type="button" className={period === option ? "selected" : ""} onClick={() => update({ period: option })} key={option}>{option}</button>)}
-        </div>
+        <p className="time-range-note"><span>24시간</span> 00:00부터 23:59까지 설정할 수 있어요.</p>
         <div className="time-wheel-picker">
-          <TimeWheel label="시" value={hour} min={1} max={12} step={1} onChange={(nextHour) => update({ hour: nextHour })} />
+          <TimeWheel controlRef={hourWheel} label="시" value={hour} min={0} max={23} step={1} pad onChange={(nextHour) => update({ hour: nextHour })} onMoveHorizontal={(direction) => { if (direction === 1) minuteWheel.current?.focus(); }} />
           <span className="wheel-colon">:</span>
-          <TimeWheel label="분" value={Number(minute)} min={0} max={55} step={5} pad onChange={(nextMinute) => update({ minute: String(nextMinute).padStart(2, "0") })} />
+          <TimeWheel controlRef={minuteWheel} label="분" value={Number(minute)} min={0} max={59} step={1} pad onChange={(nextMinute) => update({ minute: String(nextMinute).padStart(2, "0") })} onMoveHorizontal={(direction) => { if (direction === -1) hourWheel.current?.focus(); }} />
         </div>
-        <p className="wheel-hint"><span>↕</span> 트랙패드나 마우스 휠로 천천히 조절할 수 있어요.</p>
-        <footer className="time-dialog-actions"><button type="button" onClick={onCancel}>취소</button><button type="button" className="confirm-time" onClick={onConfirm}>{period} {String(hour).padStart(2, "0")}:{minute}로 정하기</button></footer>
+        <p className="wheel-hint"><span>↕</span> 값 변경 <span>↔</span> 시·분 이동</p>
+        <div className={`time-validation ${invalid ? "is-visible" : ""}`} role="status" aria-live="polite">{validationMessage}</div>
+        <footer className="time-dialog-actions"><button type="button" onClick={onCancel}>취소</button><button type="button" className="confirm-time" onClick={onConfirm} disabled={invalid}>{String(hour).padStart(2, "0")}:{minute}로 정하기</button></footer>
       </section>
     </div>
   );
 }
 
-function TimeWheel({ label, value, min, max, step, onChange, pad = false }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void; pad?: boolean }) {
+function TimeWheel({ controlRef, label, value, min, max, step, onChange, onMoveHorizontal, pad = false }: { controlRef: RefObject<HTMLDivElement | null>; label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void; onMoveHorizontal: (direction: -1 | 1) => void; pad?: boolean }) {
   const wheelDelta = useRef(0);
   const [motion, setMotion] = useState<{ direction: -1 | 1 | null; tick: number }>({ direction: null, tick: 0 });
   const move = (direction: -1 | 1) => {
@@ -506,14 +516,16 @@ function TimeWheel({ label, value, min, max, step, onChange, pad = false }: { la
   };
 
   return (
-    <div className="time-wheel" onWheel={(event) => { event.preventDefault(); event.stopPropagation(); handleWheel(event.deltaY); }} tabIndex={0} role="spinbutton" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} onKeyDown={(event) => { if (event.key === "ArrowUp") move(-1); if (event.key === "ArrowDown") move(1); }}>
+    <div ref={controlRef} className="time-wheel" onWheel={(event) => { event.preventDefault(); event.stopPropagation(); handleWheel(event.deltaY); }} tabIndex={0} role="spinbutton" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} onKeyDown={(event) => {
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") { event.preventDefault(); move(event.key === "ArrowUp" ? -1 : 1); }
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); onMoveHorizontal(event.key === "ArrowLeft" ? -1 : 1); }
+    }}>
       <span>{label}</span>
       <div className={`wheel-numbers ${motion.direction === 1 ? "turn-forward" : motion.direction === -1 ? "turn-backward" : ""}`} key={motion.tick}>
         <button type="button" onClick={() => move(-1)} aria-label={`${label} 올리기`}>{display(adjacent(-1))}</button>
         <strong>{display(value)}</strong>
         <button type="button" onClick={() => move(1)} aria-label={`${label} 내리기`}>{display(adjacent(1))}</button>
       </div>
-      <i className="wheel-notch top" aria-hidden="true" /><i className="wheel-notch bottom" aria-hidden="true" />
     </div>
   );
 }

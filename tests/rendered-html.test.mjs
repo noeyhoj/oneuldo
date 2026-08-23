@@ -55,6 +55,13 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /wheelDelta/);
   assert.match(page, /turn-forward/);
   assert.match(page, /aria-expanded/);
+  assert.match(page, /keepTimesInOrder/);
+  assert.match(page, /min=\{0\} max=\{23\}/);
+  assert.match(page, /min=\{0\} max=\{59\}/);
+  assert.match(page, /ArrowLeft/);
+  assert.match(page, /ArrowRight/);
+  assert.doesNotMatch(page, /period-switch/);
+  assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
   assert.match(main, /theme:\s*todayState\.settings\?\.theme/);
