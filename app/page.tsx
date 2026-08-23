@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Goal = {
   id: string;
@@ -410,29 +411,104 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
 }
 
 const TIME_PRESETS = {
-  morning: [{ value: "07:30", label: "7:30" }, { value: "08:00", label: "8시" }, { value: "09:00", label: "9시" }, { value: "10:00", label: "10시" }],
-  evening: [{ value: "18:00", label: "6시" }, { value: "20:00", label: "8시" }, { value: "21:30", label: "9:30" }, { value: "22:00", label: "10시" }],
+  morning: [{ value: "07:00", label: "7시" }, { value: "08:00", label: "8시" }, { value: "09:00", label: "9시" }, { value: "10:00", label: "10시" }],
+  evening: [{ value: "18:00", label: "18시" }, { value: "19:00", label: "19시" }, { value: "20:00", label: "20시" }, { value: "21:00", label: "21시" }],
 } as const;
 
 function SoftTimePicker({ kind, value, onChange, showPresets = false }: { kind: "morning" | "evening"; value: string; onChange: (value: string) => void; showPresets?: boolean }) {
-  const [hourValue, minute = "00"] = value.split(":");
-  const hour = Number(hourValue);
-  const period = hour < 12 ? "오전" : "오후";
-  const displayHour = String(((hour + 11) % 12) + 1).padStart(2, "0");
+  const [open, setOpen] = useState(false);
+  const [draftValue, setDraftValue] = useState(value);
+  const { period, hour, minute } = timeParts(value);
   const label = kind === "morning" ? "하루 시작 알림 시간" : "하루 회고 알림 시간";
+
+  const openPicker = () => {
+    setDraftValue(value);
+    setOpen(true);
+  };
 
   return (
     <div className={`soft-time-control ${kind}`}>
-      <label className="soft-time-field">
+      <button className="soft-time-field" type="button" onClick={openPicker} aria-haspopup="dialog" aria-label={`${label}, ${period} ${hour}시 ${minute}분. 눌러서 변경`}>
         <span className="time-period">{period}</span>
-        <strong>{displayHour}<i>:</i>{minute}</strong>
+        <strong>{String(hour).padStart(2, "0")}<i>:</i>{minute}</strong>
         <span className="time-edit" aria-hidden="true">⌄</span>
-        <input type="time" value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} />
-      </label>
+      </button>
       {showPresets && <div className="time-presets" aria-label={`${label} 빠른 선택`}>
-        <span>{kind === "morning" ? "아침 추천" : "저녁 추천"}</span>
+        <span>{kind === "morning" ? "시작 추천" : "회고 추천"}</span>
         {TIME_PRESETS[kind].map((preset) => <button className={value === preset.value ? "selected" : ""} type="button" key={preset.value} onClick={() => onChange(preset.value)}>{preset.label}</button>)}
       </div>}
+      {open && createPortal(<TimePickerDialog kind={kind} value={draftValue} onChange={setDraftValue} onCancel={() => setOpen(false)} onConfirm={() => { onChange(draftValue); setOpen(false); }} />, document.body)}
+    </div>
+  );
+}
+
+function timeParts(value: string) {
+  const [hourValue, minute = "00"] = value.split(":");
+  const rawHour = Number(hourValue);
+  return {
+    period: rawHour < 12 ? "오전" as const : "오후" as const,
+    hour: ((rawHour + 11) % 12) + 1,
+    minute,
+  };
+}
+
+function valueFromParts(period: "오전" | "오후", hour: number, minute: string) {
+  const rawHour = (hour % 12) + (period === "오후" ? 12 : 0);
+  return `${String(rawHour).padStart(2, "0")}:${minute}`;
+}
+
+function TimePickerDialog({ kind, value, onChange, onCancel, onConfirm }: { kind: "morning" | "evening"; value: string; onChange: (value: string) => void; onCancel: () => void; onConfirm: () => void }) {
+  const { period, hour, minute } = timeParts(value);
+  const update = (next: Partial<{ period: "오전" | "오후"; hour: number; minute: string }>) => onChange(valueFromParts(next.period ?? period, next.hour ?? hour, next.minute ?? minute));
+  const title = kind === "morning" ? "하루 시작 시간" : "하루 회고 시간";
+
+  return (
+    <div className={`time-dialog-backdrop ${kind}`} role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}>
+      <section className="time-dialog" role="dialog" aria-modal="true" aria-labelledby={`${kind}-time-title`}>
+        <header className="time-dialog-head">
+          <span className={`time-dialog-icon ${kind}`}>{kind === "morning" ? "☀" : "☾"}</span>
+          <div><small>{kind === "morning" ? "가볍게 시작하는 시간" : "마음을 놓고 돌아보는 시간"}</small><h2 id={`${kind}-time-title`}>{title} 정하기</h2></div>
+          <button type="button" onClick={onCancel} aria-label="시간 선택 닫기">×</button>
+        </header>
+        <div className="period-switch" aria-label="오전 오후 선택">
+          {(["오전", "오후"] as const).map((option) => <button type="button" className={period === option ? "selected" : ""} onClick={() => update({ period: option })} key={option}>{option}</button>)}
+        </div>
+        <div className="time-wheel-picker">
+          <TimeWheel label="시" value={hour} min={1} max={12} step={1} onChange={(nextHour) => update({ hour: nextHour })} />
+          <span className="wheel-colon">:</span>
+          <TimeWheel label="분" value={Number(minute)} min={0} max={55} step={5} pad onChange={(nextMinute) => update({ minute: String(nextMinute).padStart(2, "0") })} />
+        </div>
+        <p className="wheel-hint"><span>↕</span> 트랙패드나 마우스 휠로 천천히 조절할 수 있어요.</p>
+        <footer className="time-dialog-actions"><button type="button" onClick={onCancel}>취소</button><button type="button" className="confirm-time" onClick={onConfirm}>{period} {String(hour).padStart(2, "0")}:{minute}로 정하기</button></footer>
+      </section>
+    </div>
+  );
+}
+
+function TimeWheel({ label, value, min, max, step, onChange, pad = false }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void; pad?: boolean }) {
+  const wheelDelta = useRef(0);
+  const move = (direction: -1 | 1) => {
+    const next = value + direction * step;
+    onChange(next > max ? min : next < min ? max : next);
+  };
+  const display = (number: number) => String(number).padStart(pad ? 2 : 1, "0");
+  const adjacent = (direction: -1 | 1) => {
+    const next = value + direction * step;
+    return next > max ? min : next < min ? max : next;
+  };
+  const handleWheel = (deltaY: number) => {
+    wheelDelta.current += deltaY;
+    if (Math.abs(wheelDelta.current) < 140) return;
+    move(wheelDelta.current > 0 ? 1 : -1);
+    wheelDelta.current = 0;
+  };
+
+  return (
+    <div className="time-wheel" onWheel={(event) => handleWheel(event.deltaY)} tabIndex={0} role="spinbutton" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} onKeyDown={(event) => { if (event.key === "ArrowUp") move(-1); if (event.key === "ArrowDown") move(1); }}>
+      <span>{label}</span>
+      <button type="button" onClick={() => move(-1)} aria-label={`${label} 올리기`}>{display(adjacent(-1))}</button>
+      <strong>{display(value)}</strong>
+      <button type="button" onClick={() => move(1)} aria-label={`${label} 내리기`}>{display(adjacent(1))}</button>
     </div>
   );
 }
