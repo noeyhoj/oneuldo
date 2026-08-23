@@ -428,10 +428,10 @@ function SoftTimePicker({ kind, value, onChange, showPresets = false }: { kind: 
 
   return (
     <div className={`soft-time-control ${kind}`}>
-      <button className="soft-time-field" type="button" onClick={openPicker} aria-haspopup="dialog" aria-label={`${label}, ${period} ${hour}시 ${minute}분. 눌러서 변경`}>
+      <button className={`soft-time-field ${open ? "is-open" : ""}`} type="button" onClick={openPicker} aria-haspopup="dialog" aria-expanded={open} aria-label={`${label}, ${period} ${hour}시 ${minute}분. 눌러서 변경`}>
         <span className="time-period">{period}</span>
         <strong>{String(hour).padStart(2, "0")}<i>:</i>{minute}</strong>
-        <span className="time-edit" aria-hidden="true">⌄</span>
+        <span className="time-edit" aria-hidden="true"><i /></span>
       </button>
       {showPresets && <div className="time-presets" aria-label={`${label} 빠른 선택`}>
         <span>{kind === "morning" ? "시작 추천" : "회고 추천"}</span>
@@ -487,8 +487,10 @@ function TimePickerDialog({ kind, value, onChange, onCancel, onConfirm }: { kind
 
 function TimeWheel({ label, value, min, max, step, onChange, pad = false }: { label: string; value: number; min: number; max: number; step: number; onChange: (value: number) => void; pad?: boolean }) {
   const wheelDelta = useRef(0);
+  const [motion, setMotion] = useState<{ direction: -1 | 1 | null; tick: number }>({ direction: null, tick: 0 });
   const move = (direction: -1 | 1) => {
     const next = value + direction * step;
+    setMotion((current) => ({ direction, tick: current.tick + 1 }));
     onChange(next > max ? min : next < min ? max : next);
   };
   const display = (number: number) => String(number).padStart(pad ? 2 : 1, "0");
@@ -504,11 +506,14 @@ function TimeWheel({ label, value, min, max, step, onChange, pad = false }: { la
   };
 
   return (
-    <div className="time-wheel" onWheel={(event) => handleWheel(event.deltaY)} tabIndex={0} role="spinbutton" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} onKeyDown={(event) => { if (event.key === "ArrowUp") move(-1); if (event.key === "ArrowDown") move(1); }}>
+    <div className="time-wheel" onWheel={(event) => { event.preventDefault(); event.stopPropagation(); handleWheel(event.deltaY); }} tabIndex={0} role="spinbutton" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} onKeyDown={(event) => { if (event.key === "ArrowUp") move(-1); if (event.key === "ArrowDown") move(1); }}>
       <span>{label}</span>
-      <button type="button" onClick={() => move(-1)} aria-label={`${label} 올리기`}>{display(adjacent(-1))}</button>
-      <strong>{display(value)}</strong>
-      <button type="button" onClick={() => move(1)} aria-label={`${label} 내리기`}>{display(adjacent(1))}</button>
+      <div className={`wheel-numbers ${motion.direction === 1 ? "turn-forward" : motion.direction === -1 ? "turn-backward" : ""}`} key={motion.tick}>
+        <button type="button" onClick={() => move(-1)} aria-label={`${label} 올리기`}>{display(adjacent(-1))}</button>
+        <strong>{display(value)}</strong>
+        <button type="button" onClick={() => move(1)} aria-label={`${label} 내리기`}>{display(adjacent(1))}</button>
+      </div>
+      <i className="wheel-notch top" aria-hidden="true" /><i className="wheel-notch bottom" aria-hidden="true" />
     </div>
   );
 }

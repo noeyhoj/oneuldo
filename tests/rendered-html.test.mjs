@@ -53,6 +53,8 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /function SoftTimePicker/);
   assert.match(page, /function TimePickerDialog/);
   assert.match(page, /wheelDelta/);
+  assert.match(page, /turn-forward/);
+  assert.match(page, /aria-expanded/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
   assert.match(main, /theme:\s*todayState\.settings\?\.theme/);
