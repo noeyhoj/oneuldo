@@ -53,9 +53,19 @@ const timeToMinutes = (value: string) => {
   return Number(hour) * 60 + Number(minute);
 };
 
-const keepTimesInOrder = (settings: Settings): Settings => timeToMinutes(settings.evening) < timeToMinutes(settings.morning)
-  ? { ...settings, evening: settings.morning }
-  : settings;
+const normalizeToTenMinutes = (value: string) => {
+  const [hour = "0", minute = "0"] = value.split(":");
+  const safeHour = Math.min(23, Math.max(0, Number(hour) || 0));
+  const safeMinute = Math.min(50, Math.max(0, Math.floor((Number(minute) || 0) / 10) * 10));
+  return `${String(safeHour).padStart(2, "0")}:${String(safeMinute).padStart(2, "0")}`;
+};
+
+const keepTimesInOrder = (settings: Settings): Settings => {
+  const normalized = { ...settings, morning: normalizeToTenMinutes(settings.morning), evening: normalizeToTenMinutes(settings.evening) };
+  return timeToMinutes(normalized.evening) < timeToMinutes(normalized.morning)
+    ? { ...normalized, evening: normalized.morning }
+    : normalized;
+};
 
 export default function Home() {
   const [view, setView] = useState<"today" | "review" | "records">("today");
@@ -324,7 +334,14 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
           {selected ? <>
             <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>오늘도 꽤 잘했어.</h2></div><span className="mini-mate">•ᴗ•</span></div>
             <div className="record-section"><p>✨ 오늘 해낸 일</p><ul>{selected.done.map((item) => <li key={item}><span>✓</span>{item}</li>)}</ul></div>
-            {!!selected.unfinished.length && <div className="record-section unfinished"><p>☼ 다음으로 미룬 일</p>{selected.unfinished.map((item) => <div className="unfinished-item" key={item.title}><strong>{item.title}</strong><span>{item.reason}</span>{item.note && <q>{item.note}</q>}{item.carry && <em>내일 다시 해보기</em>}</div>)}</div>}
+            {!!selected.unfinished.length && <div className="record-section unfinished">
+              <p className="unfinished-heading"><span aria-hidden="true">↗</span>다음으로 미룬 일 <em>{selected.unfinished.length}</em></p>
+              <div className="unfinished-list">{selected.unfinished.map((item) => <article className="unfinished-item" key={item.title}>
+                <span className="unfinished-mark" aria-hidden="true">○</span>
+                <div className="unfinished-copy"><strong>{item.title}</strong>{item.note && <q>{item.note}</q>}</div>
+                <div className="unfinished-meta"><span>{item.reason}</span>{item.carry && <em>↗ 내일 이어하기</em>}</div>
+              </article>)}</div>
+            </div>}
             <blockquote><span>“</span>{selected.note}<small>— 네 목표 메이트가</small></blockquote>
           </> : <div className="no-record"><span>☾</span><h2>아직 기록이 없어요</h2><p>오늘을 돌아보면 첫 카드가 생겨요.</p></div>}
         </article>
@@ -334,6 +351,11 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
 }
 
 function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settings: Settings; onChange: (value: Settings) => void; onClose: () => void; onRestartGuide: () => void }) {
+  useEffect(() => {
+    document.documentElement.classList.add("modal-scroll-locked");
+    return () => document.documentElement.classList.remove("modal-scroll-locked");
+  }, []);
+
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
@@ -431,7 +453,7 @@ function SoftTimePicker({ kind, value, onChange, showPresets = false, minValue, 
   const label = kind === "morning" ? "하루 시작 알림 시간" : "하루 회고 알림 시간";
 
   const openPicker = () => {
-    setDraftValue(value);
+    setDraftValue(normalizeToTenMinutes(value));
     setOpen(true);
   };
 
@@ -481,11 +503,11 @@ function TimePickerDialog({ kind, value, minValue, maxValue, onChange, onCancel,
           <div><small>{kind === "morning" ? "가볍게 시작하는 시간" : "마음을 놓고 돌아보는 시간"}</small><h2 id={`${kind}-time-title`}>{title} 정하기</h2></div>
           <button type="button" onClick={onCancel} aria-label="시간 선택 닫기">×</button>
         </header>
-        <p className="time-range-note"><span>24시간</span> 00:00부터 23:59까지 설정할 수 있어요.</p>
+        <p className="time-range-note"><span>24시간</span> 00:00부터 23:50까지 10분 단위로 설정해요.</p>
         <div className="time-wheel-picker">
           <TimeWheel controlRef={hourWheel} label="시" value={hour} min={0} max={23} step={1} pad onChange={(nextHour) => update({ hour: nextHour })} onMoveHorizontal={(direction) => { if (direction === 1) minuteWheel.current?.focus(); }} />
           <span className="wheel-colon">:</span>
-          <TimeWheel controlRef={minuteWheel} label="분" value={Number(minute)} min={0} max={59} step={1} pad onChange={(nextMinute) => update({ minute: String(nextMinute).padStart(2, "0") })} onMoveHorizontal={(direction) => { if (direction === -1) hourWheel.current?.focus(); }} />
+          <TimeWheel controlRef={minuteWheel} label="분" value={Number(minute)} min={0} max={50} step={10} pad onChange={(nextMinute) => update({ minute: String(nextMinute).padStart(2, "0") })} onMoveHorizontal={(direction) => { if (direction === -1) hourWheel.current?.focus(); }} />
         </div>
         <p className="wheel-hint"><span>↕</span> 값 변경 <span>↔</span> 시·분 이동</p>
         <div className={`time-validation ${invalid ? "is-visible" : ""}`} role="status" aria-live="polite">{validationMessage}</div>

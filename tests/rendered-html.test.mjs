@@ -57,7 +57,10 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /aria-expanded/);
   assert.match(page, /keepTimesInOrder/);
   assert.match(page, /min=\{0\} max=\{23\}/);
-  assert.match(page, /min=\{0\} max=\{59\}/);
+  assert.match(page, /min=\{0\} max=\{50\} step=\{10\}/);
+  assert.match(page, /normalizeToTenMinutes/);
+  assert.match(page, /modal-scroll-locked/);
+  assert.match(page, /unfinished-meta/);
   assert.match(page, /ArrowLeft/);
   assert.match(page, /ArrowRight/);
   assert.doesNotMatch(page, /period-switch/);
