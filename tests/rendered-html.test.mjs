@@ -154,7 +154,8 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /animal:\s*todayState\.settings\?\.animal/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.20\.0"/);
+  assert.match(packageJson, /"version": "1\.20\.1"/);
+  assert.match(packageJson, /"identity": "-"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
   assert.match(page, /function OnboardingGuide/);
@@ -222,7 +223,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.20\.0"/);
+  assert.match(page, /APP_VERSION = "1\.20\.1"/);
   assert.match(page, /extraDone\?: string\[\]/);
   assert.match(page, /오늘 한 일 중에/);
   assert.match(page, /한 가지만 더 떠올려볼까요/);

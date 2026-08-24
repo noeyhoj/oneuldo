@@ -133,7 +133,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.20.0";
+const APP_VERSION = "1.20.1";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
