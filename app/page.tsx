@@ -133,7 +133,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.19.0";
+const APP_VERSION = "1.19.1";
 const BUG_REPORT_URL = "https://github.com/noeyhoj/oneuldo/issues/new?template=bug_report.yml";
 
 const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };

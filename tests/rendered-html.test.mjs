@@ -117,6 +117,8 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(mate, /목표 메이트와 대화하기/);
   assert.match(mate, /class="character-image"/);
   assert.match(mate, /class="status"/);
+  assert.match(mate, /class="bubble-tail"/);
+  assert.match(mate, /M1 1 C9 1 18 2 27 1 C21 5 16 11 10 17/);
   assert.doesNotMatch(mate, /<button class="status"/);
   assert.match(mate, /id="characterImage"/);
   assert.match(mate, /assets\/mate-cat-sign-3d\.png/);
@@ -150,7 +152,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /animal:\s*todayState\.settings\?\.animal/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.19\.0"/);
+  assert.match(packageJson, /"version": "1\.19\.1"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
   assert.match(page, /function OnboardingGuide/);
@@ -218,7 +220,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.19\.0"/);
+  assert.match(page, /APP_VERSION = "1\.19\.1"/);
   assert.match(page, /extraDone\?: string\[\]/);
   assert.match(page, /오늘 한 일 중에/);
   assert.match(page, /더 기억나는 게 있나요/);
@@ -244,8 +246,8 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(mate, /오늘도 네 편이야 🌿/);
   assert.match(mateScript, /오늘도 네 편이야 🌿/);
   assert.match(mateStyles, /\.bubble[\s\S]*box-shadow: none/);
-  assert.match(mateStyles, /\.bubble::before[\s\S]*background: rgba\(67, 55, 43, \.16\)/);
-  assert.match(mateStyles, /\.bubble::after[\s\S]*clip-path: polygon/);
+  assert.match(mateStyles, /\.bubble-tail[\s\S]*bottom: -18px/);
+  assert.match(mateStyles, /\.bubble-tail-line[\s\S]*stroke-linecap: round/);
   assert.match(mateStyles, /\.bubble strong \{ color:#2f2a26; font-size: 16px; font-weight:880/);
   assert.match(nativeMenuBar, /NSRect\(x: 0\.5, y: 11\.1/);
   assert.match(page, /className="settings-scroll"/);
