@@ -127,14 +127,12 @@ const MATE_CHEERS = [
 ];
 const goalAwareMateCheers = (goals: Goal[]) => {
   const openGoal = goals.find((goal) => !goal.done);
-  const doneGoal = goals.find((goal) => goal.done);
   return [
     ...MATE_CHEERS,
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
-    doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.21.0";
+const APP_VERSION = "1.22.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -261,6 +259,11 @@ export default function Home() {
   const completeCount = goals.filter((goal) => goal.done).length;
   const dateLabel = useMemo(() => new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date()), []);
   const reviewedToday = records.some((record) => record.date === activeDate);
+  const openRecords = () => {
+    const today = dateKey();
+    setSelectedDate(records.some((record) => record.date === today) ? today : addDaysToDateKey(today, -1));
+    setView("records");
+  };
   const talkToGoalMate = () => {
     const candidates = goalAwareMateCheers(goals).filter((candidate) => candidate !== message);
     setMessage(candidates[Math.floor(Math.random() * candidates.length)] || MATE_CHEERS[0]);
@@ -375,7 +378,7 @@ export default function Home() {
     setView("records");
   };
 
-  const selectedRecord = records.find((record) => record.date === selectedDate) || records.at(-1);
+  const selectedRecord = records.find((record) => record.date === selectedDate);
 
   const finishOnboarding = (nextSettings: Settings, firstGoal: string) => {
     setSettings(keepTimesInOrder(nextSettings));
@@ -406,7 +409,7 @@ export default function Home() {
         </button>
         <nav className="main-nav" aria-label="주요 메뉴">
           <button className={view === "today" ? "active" : ""} onClick={() => setView("today")} type="button">오늘</button>
-          <button className={view === "records" ? "active" : ""} onClick={() => setView("records")} type="button">내 기록</button>
+          <button className={view === "records" ? "active" : ""} onClick={openRecords} type="button">내 기록</button>
         </nav>
         <div className="top-actions">
           {view !== "review" && <button className="review-button" type="button" onClick={() => setView("review")}><span>☾</span> 오늘 돌아보기</button>}
@@ -504,7 +507,7 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
   const [dragging, setDragging] = useState(false);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
   const [rememberedInput, setRememberedInput] = useState("");
-  const [rememberedDone, setRememberedDone] = useState<string[]>([]);
+  const [rememberedDone, setRememberedDone] = useState("");
   const [memoryFinished, setMemoryFinished] = useState(false);
   const dragStart = useRef(0);
   const dragOffset = useRef(0);
@@ -514,14 +517,15 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
   const memoryStep = cardsComplete && !memoryFinished;
   const reviewComplete = cardsComplete && memoryFinished;
   const carryCount = goals.filter((goal) => !goal.done && goal.carry).length;
-  const reviewedCount = completeCount + rememberedDone.length;
+  const reviewedCount = completeCount + (rememberedDone ? 1 : 0);
 
   const rememberDone = (event: FormEvent) => {
     event.preventDefault();
     const title = rememberedInput.trim();
-    if (!title || rememberedDone.length) return;
-    setRememberedDone([title]);
+    if (!title || rememberedDone) return;
+    setRememberedDone(title);
     setRememberedInput("");
+    setMemoryFinished(true);
   };
 
   const advance = (direction: "left" | "right") => {
@@ -626,19 +630,19 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
             <div className="memory-card-kind"><span aria-hidden="true">✦</span><div><small>목표 밖에서 발견한 일</small><strong>한 가지만 기억해도 충분해요</strong></div></div>
             <div className="memory-card-copy"><span aria-hidden="true">💭</span><h2>오늘 한 일 중에<br />한 가지만 더 떠올려볼까요?</h2><p>크거나 특별한 일일 필요 없어요.<br /><b>한 가지면 오늘을 기억하기에 충분해요.</b></p></div>
             <form className="memory-form" onSubmit={rememberDone}>
-              <input value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} disabled={rememberedDone.length > 0} placeholder={rememberedDone.length ? "한 가지를 잘 기억해뒀어요" : "예: 밀린 설거지를 했다"} aria-label="목표 외에 오늘 해낸 일 한 가지" />
-              <button type="submit" disabled={!rememberedInput.trim() || rememberedDone.length > 0}>{rememberedDone.length ? "기록했어요" : "한 가지 기록"}</button>
+              <input value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} placeholder="예: 밀린 설거지를 했다" aria-label="목표 외에 오늘 해낸 일 한 가지" />
+              <button type="submit" disabled={!rememberedInput.trim()}>기록하고 넘어가기</button>
             </form>
-            {!!rememberedDone.length && <div className="remembered-list" aria-label="추가로 기억난 일">{rememberedDone.map((item) => <span key={item}><i aria-hidden="true">✓</i>{item}<button type="button" onClick={() => setRememberedDone((current) => current.filter((remembered) => remembered !== item))} aria-label={`${item} 삭제`}>×</button></span>)}</div>}
-            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>{rememberedDone.length ? "이 한 가지를 기억할게요" : "지금은 더 기억나는 일이 없어요"}<b>→</b></button>
+            <p className="memory-one-note">딱 한 가지만 적으면 바로 다음으로 넘어가요.</p>
+            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>지금은 더 기억나는 일이 없어요<b>→</b></button>
           </article>}
 
           {reviewComplete && <article className="review-card review-complete-card">
             <span className="complete-mate" aria-hidden="true">•ᴗ•</span>
             <p>오늘의 카드 정리 완료</p>
             <h2>{reviewedCount ? `${koreanCount(reviewedCount)} 가지나 해낸 오늘을 기억할게요.` : "오늘을 돌아본 것만으로도 충분해요."}</h2>
-            <span>{rememberedDone.length ? "목표 밖에서도 소중한 한 가지를 더 발견했어요." : carryCount ? `${koreanCount(carryCount)} 가지는 내일 TODO에 다시 나타나요.` : "선택한 내용은 내 기록에 차분히 남겨둘게요."}</span>
-            <button className="finish-review" type="button" onClick={() => onFinish(rememberedDone)}>오늘의 기록 남기기 <b>→</b></button>
+            <span>{rememberedDone ? "목표 밖에서도 소중한 한 가지를 더 발견했어요." : carryCount ? `${koreanCount(carryCount)} 가지는 내일 TODO에 다시 나타나요.` : "선택한 내용은 내 기록에 차분히 남겨둘게요."}</span>
+            <button className="finish-review" type="button" onClick={() => onFinish(rememberedDone ? [rememberedDone] : [])}>오늘의 기록 남기기 <b>→</b></button>
           </article>}
 
           <div className="review-stage-nav"><button type="button" onClick={() => { if (memoryStep) setActiveIndex(Math.max(0, cards.length - 1)); else previousCard(); }} disabled={(activeIndex === 0 && !memoryStep) || Boolean(exiting)}>← 이전 카드</button>{!cardsComplete && activeCard?.type !== "difficult" && <button type="button" onClick={() => advance("right")}>다음 카드 →</button>}</div>

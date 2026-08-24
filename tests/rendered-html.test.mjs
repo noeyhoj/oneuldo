@@ -169,7 +169,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /characterSize:\s*todayState\.settings\?\.characterSize/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.21\.0"/);
+  assert.match(packageJson, /"version": "1\.22\.0"/);
   assert.match(packageJson, /"identity": "-"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
@@ -221,7 +221,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /function nextGentleMessage\(\)/);
   assert.match(main, /function contextualMateMessage\(\)/);
   assert.match(main, /goal\.carriedFrom/);
-  assert.match(main, /복잡한 일을 눈에 보이는 한 걸음으로/);
+  assert.match(main, /const openGoals = goals\.filter\(\(goal\) => !goal\.done\)/);
   assert.match(main, /오늘의 속도도 충분히 너다워/);
   assert.match(main, /function getAttentionState/);
   assert.match(main, /oneuldo-records/);
@@ -238,7 +238,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.21\.0"/);
+  assert.match(page, /APP_VERSION = "1\.22\.0"/);
   assert.match(page, /characterSize: "small" \| "medium" \| "large"/);
   assert.match(page, /데스크톱 캐릭터 표시 설정/);
   assert.match(page, /캐릭터 크기/);
@@ -248,7 +248,9 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /오늘 한 일 중에/);
   assert.match(page, /한 가지만 더 떠올려볼까요/);
   assert.match(page, /한 가지면 오늘을 기억하기에 충분해요/);
-  assert.match(page, /if \(!title \|\| rememberedDone\.length\) return/);
+  assert.match(page, /if \(!title \|\| rememberedDone\) return/);
+  assert.match(page, /setMemoryFinished\(true\)/);
+  assert.match(page, /딱 한 가지만 적으면 바로 다음으로 넘어가요/);
   assert.match(page, /목표 외에 오늘 해낸 일/);
   assert.match(page, /목표 밖에서 기억난 일/);
   assert.match(page, /rememberedDone/);
@@ -258,12 +260,16 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /humanizeCountPhrases/);
   assert.match(page, /koreanCount\(reviewedCount\)/);
   assert.match(page, /goalAwareMateCheers/);
+  assert.doesNotMatch(page, /doneGoal/);
   assert.match(page, /className="close-settings"/);
   assert.match(page, /onPointerDown=\{\(event\)/);
   assert.match(styles, /\.modal-head \.close-settings/);
   assert.match(main, /function pickDistinctMateMessage/);
   assert.match(main, /shortGoalTitle\(goal\.title\)/);
   assert.match(main, /koreanCount\(doneGoals\.length\)/);
+  assert.doesNotMatch(main, /doneGoals\[Math\.floor/);
+  assert.match(page, /addDaysToDateKey\(today, -1\)/);
+  assert.match(page, /records\.some\(\(record\) => record\.date === today\) \? today/);
   assert.match(page, /syncedUntilMidnight/);
   assert.match(page, /자정까지 오늘 TODO와 동기화 중/);
   assert.match(styles, /Carryovers wait for the user/);
@@ -289,6 +295,9 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(styles, /\.settings-modal\{[^}]*overflow:hidden/);
   assert.match(styles, /Make the review's core achievement label unmistakable/);
   assert.match(styles, /\.review-card-kind\.done small\{[^}]*font-size:16px/);
+  assert.match(styles, /Larger reflection card type and readable record sync copy/);
+  assert.match(styles, /\.done-card-center h2\{font-size:31px/);
+  assert.match(styles, /\.record-head-side>small\{max-width:170px;word-break:keep-all/);
   assert.match(page, /나의 목표 메이트/);
   assert.match(page, /mate-options/);
   assert.match(page, /animal: "cat"/);

@@ -333,28 +333,17 @@ function contextualMateMessage() {
   const goals = Array.isArray(todayState.goals) ? todayState.goals : [];
   const doneGoals = goals.filter((goal) => goal.done);
   const openGoals = goals.filter((goal) => !goal.done);
-  const titles = doneGoals.map((goal) => goal.title).join(" ");
-  const has = (words) => words.some((word) => titles.includes(word));
   const candidates = [nextGentleMessage(), nextGentleMessage()];
 
   if (!goals.length) candidates.push("오늘 마음에 담아둘 작은 일 한 가지를 천천히 골라볼까?");
   if (goals.length && doneGoals.length === goals.length) candidates.push("마음에 담은 일을 모두 해냈네. 오늘의 리듬이 참 멋져 🎉");
   if (!doneGoals.length && goals.some((goal) => goal.carriedFrom)) candidates.push("어제에서 가져온 일도 오늘의 속도에 맞춰 천천히 이어가면 돼.");
-  if (has(["산책", "운동", "요가", "달리기", "스트레칭"])) candidates.push("바쁜 하루에도 나를 돌보는 시간을 챙겼네. 참 다정한 선택이야 🌿");
-  if (has(["공부", "책", "읽기", "강의", "알고리즘", "연습"])) candidates.push("오늘 쌓은 배움은 작아 보여도 오래 남을 거야.");
-  if (has(["기획", "프로젝트", "포트폴리오", "보고서", "회의", "문구", "화면", "PR"])) candidates.push("복잡한 일을 눈에 보이는 한 걸음으로 바꿔냈네. 잘했어 ✨");
-  if (has(["전화", "연락", "가족", "친구", "만나"])) candidates.push("소중한 사람에게 건넨 마음도 오늘의 따뜻한 성취야.");
   if (doneGoals.length) candidates.push(`오늘 ${koreanCount(doneGoals.length)} 가지나 발자국으로 남겼어. 네가 움직인 만큼을 기억할게.`);
 
   if (openGoals.length) {
     const goal = openGoals[Math.floor(Math.random() * openGoals.length)];
     candidates.push(`“${shortGoalTitle(goal.title)}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`);
   }
-  if (doneGoals.length) {
-    const goal = doneGoals[Math.floor(Math.random() * doneGoals.length)];
-    candidates.push(`“${shortGoalTitle(goal.title)}”까지 해낸 오늘의 너, 정말 멋져.`);
-  }
-
   const nowMinutes = new Date().getHours() * 60 + new Date().getMinutes();
   const eveningMinutes = Number((todayState.settings?.evening || "18:00").slice(0, 2)) * 60 + Number((todayState.settings?.evening || "18:00").slice(3, 5));
   if (nowMinutes >= eveningMinutes && !doneGoals.length) candidates.push("완료 표시가 없어도 애쓴 시간은 사라지지 않아. 오늘을 돌아본 것부터 충분해.");
