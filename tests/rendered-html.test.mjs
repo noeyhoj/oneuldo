@@ -109,7 +109,9 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /className="brand-image"/);
   assert.match(page, /오늘도 - 네가 해낸 하루를 기억할게/);
   assert.match(page, /className="bug-report-link"/);
-  assert.match(page, /issues\/new\?template=bug_report\.yml/);
+  assert.match(page, /mailto:\$\{BUG_REPORT_EMAIL\}/);
+  assert.match(page, /dryzero0@gmail\.com/);
+  assert.match(page, /\[발생한 문제\]/);
   assert.match(main, /new Notification\(/);
   assert.match(main, /setVisibleOnAllWorkspaces/);
   assert.match(main, /desktop-ui-dist\/index\.html/);
@@ -152,7 +154,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /animal:\s*todayState\.settings\?\.animal/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.19\.1"/);
+  assert.match(packageJson, /"version": "1\.20\.0"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
   assert.match(page, /function OnboardingGuide/);
@@ -220,10 +222,12 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.19\.1"/);
+  assert.match(page, /APP_VERSION = "1\.20\.0"/);
   assert.match(page, /extraDone\?: string\[\]/);
   assert.match(page, /오늘 한 일 중에/);
-  assert.match(page, /더 기억나는 게 있나요/);
+  assert.match(page, /한 가지만 더 떠올려볼까요/);
+  assert.match(page, /한 가지면 오늘을 기억하기에 충분해요/);
+  assert.match(page, /if \(!title \|\| rememberedDone\.length\) return/);
   assert.match(page, /목표 외에 오늘 해낸 일/);
   assert.match(page, /목표 밖에서 기억난 일/);
   assert.match(page, /rememberedDone/);

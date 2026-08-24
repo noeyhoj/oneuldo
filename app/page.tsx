@@ -133,8 +133,25 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.19.1";
-const BUG_REPORT_URL = "https://github.com/noeyhoj/oneuldo/issues/new?template=bug_report.yml";
+const APP_VERSION = "1.20.0";
+const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
+const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
+
+• 앱 버전: ${APP_VERSION}
+• macOS 버전:
+
+[발생한 문제]
+
+
+[재현 방법]
+1.
+2.
+
+[기대한 동작]
+
+
+[스크린샷 또는 참고 내용]
+`)}`;
 
 const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };
 
@@ -496,8 +513,8 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
   const rememberDone = (event: FormEvent) => {
     event.preventDefault();
     const title = rememberedInput.trim();
-    if (!title || rememberedDone.includes(title) || rememberedDone.length >= 5) return;
-    setRememberedDone((current) => [...current, title]);
+    if (!title || rememberedDone.length) return;
+    setRememberedDone([title]);
     setRememberedInput("");
   };
 
@@ -561,7 +578,7 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
         <div className="review-stage">
           <div className="review-progress" aria-live="polite">
             <div><span style={{ width: `${(Math.min(activeIndex, cards.length) + (memoryFinished ? 1 : 0)) / (cards.length + 1) * 100}%` }} /></div>
-            <strong>{reviewComplete ? "돌아보기 완료" : memoryStep ? "하나 더 떠올리기" : `${activeIndex + 1} / ${cards.length + 1}`}</strong>
+            <strong>{reviewComplete ? "돌아보기 완료" : memoryStep ? "한 가지만 떠올리기" : `${activeIndex + 1} / ${cards.length + 1}`}</strong>
           </div>
 
           {!reviewComplete && activeCard && <div className="review-card-stack" aria-label={`${activeIndex + 1}번째 회고 카드`}>
@@ -600,21 +617,21 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
           </div>}
 
           {memoryStep && <article className="review-card memory-card">
-            <div className="memory-card-kind"><span aria-hidden="true">✦</span><div><small>목표 밖에서 발견한 일</small><strong>오늘의 기억을 한 번 더 살펴봐요</strong></div></div>
-            <div className="memory-card-copy"><span aria-hidden="true">💭</span><h2>오늘 한 일 중에<br />더 기억나는 게 있나요?</h2><p>계획하지 않았던 일도 괜찮아요.<br />작은 움직임까지 오늘의 기록으로 남길게요.</p></div>
+            <div className="memory-card-kind"><span aria-hidden="true">✦</span><div><small>목표 밖에서 발견한 일</small><strong>한 가지만 기억해도 충분해요</strong></div></div>
+            <div className="memory-card-copy"><span aria-hidden="true">💭</span><h2>오늘 한 일 중에<br />한 가지만 더 떠올려볼까요?</h2><p>크거나 특별한 일일 필요 없어요.<br /><b>한 가지면 오늘을 기억하기에 충분해요.</b></p></div>
             <form className="memory-form" onSubmit={rememberDone}>
-              <input value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} placeholder="예: 밀린 설거지를 했다" aria-label="목표 외에 오늘 해낸 일" />
-              <button type="submit" disabled={!rememberedInput.trim() || rememberedDone.length >= 5}>기록하기</button>
+              <input value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} disabled={rememberedDone.length > 0} placeholder={rememberedDone.length ? "한 가지를 잘 기억해뒀어요" : "예: 밀린 설거지를 했다"} aria-label="목표 외에 오늘 해낸 일 한 가지" />
+              <button type="submit" disabled={!rememberedInput.trim() || rememberedDone.length > 0}>{rememberedDone.length ? "기록했어요" : "한 가지 기록"}</button>
             </form>
             {!!rememberedDone.length && <div className="remembered-list" aria-label="추가로 기억난 일">{rememberedDone.map((item) => <span key={item}><i aria-hidden="true">✓</i>{item}<button type="button" onClick={() => setRememberedDone((current) => current.filter((remembered) => remembered !== item))} aria-label={`${item} 삭제`}>×</button></span>)}</div>}
-            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>{rememberedDone.length ? "이만큼 기억할게요" : "지금은 더 기억나는 일이 없어요"}<b>→</b></button>
+            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>{rememberedDone.length ? "이 한 가지를 기억할게요" : "지금은 더 기억나는 일이 없어요"}<b>→</b></button>
           </article>}
 
           {reviewComplete && <article className="review-card review-complete-card">
             <span className="complete-mate" aria-hidden="true">•ᴗ•</span>
             <p>오늘의 카드 정리 완료</p>
             <h2>{reviewedCount ? `${koreanCount(reviewedCount)} 가지나 해낸 오늘을 기억할게요.` : "오늘을 돌아본 것만으로도 충분해요."}</h2>
-            <span>{rememberedDone.length ? `${koreanCount(rememberedDone.length)} 가지를 목표 밖에서 더 발견했어요.` : carryCount ? `${koreanCount(carryCount)} 가지는 내일 TODO에 다시 나타나요.` : "선택한 내용은 내 기록에 차분히 남겨둘게요."}</span>
+            <span>{rememberedDone.length ? "목표 밖에서도 소중한 한 가지를 더 발견했어요." : carryCount ? `${koreanCount(carryCount)} 가지는 내일 TODO에 다시 나타나요.` : "선택한 내용은 내 기록에 차분히 남겨둘게요."}</span>
             <button className="finish-review" type="button" onClick={() => onFinish(rememberedDone)}>오늘의 기록 남기기 <b>→</b></button>
           </article>}
 
@@ -718,9 +735,9 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
         </div>
         <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
         <button className="restart-guide" type="button" onClick={onRestartGuide}>✦ &nbsp;첫 시작 가이드 다시 보기</button>
-        <a className="bug-report-link" href={BUG_REPORT_URL} target="_blank" rel="noreferrer">
-          <span className="bug-report-icon" aria-hidden="true">✺</span>
-          <span><strong>버그 제보하기</strong><small>불편한 점을 알려주면 더 다정하게 고칠게요.</small></span>
+        <a className="bug-report-link" href={BUG_REPORT_MAILTO} target="_blank" rel="noreferrer">
+          <span className="bug-report-icon" aria-hidden="true">✉</span>
+          <span><strong>이메일로 버그 제보하기</strong><small>{BUG_REPORT_EMAIL} · 기본 메일 앱에서 작성해요.</small></span>
           <b aria-hidden="true">↗</b>
         </a>
         <button className="save-settings" type="button" onClick={onClose}>이대로 함께하기</button>
