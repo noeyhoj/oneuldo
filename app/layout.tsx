@@ -8,7 +8,7 @@ const geistSans = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "오늘도 — 네가 해낸 하루를 기억할게",
+  title: "오늘도 - 네가 해낸 하루를 기억할게",
   description: "하지 못한 것보다 해낸 것을 먼저 기억해주는 데스크톱 목표 메이트.",
   openGraph: {
     title: "오늘도 꽤 잘했어.",

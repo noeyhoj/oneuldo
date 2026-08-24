@@ -172,7 +172,7 @@ final class OneuldoMenuBarDelegate: NSObject, NSApplicationDelegate {
 
     private func makeMenu(_ state: MenuBarState = MenuBarState()) -> NSMenu {
         let menu = NSMenu(title: "오늘도")
-        let heading = NSMenuItem(title: "오늘도 — 네가 해낸 하루를 기억할게", action: nil, keyEquivalent: "")
+        let heading = NSMenuItem(title: "오늘도 - 네가 해낸 하루를 기억할게", action: nil, keyEquivalent: "")
         heading.isEnabled = false
         heading.image = makeCatIcon()
         menu.addItem(heading)

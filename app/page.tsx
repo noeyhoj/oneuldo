@@ -124,7 +124,8 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.17.0";
+const APP_VERSION = "1.18.0";
+const BUG_REPORT_URL = "https://github.com/noeyhoj/oneuldo/issues/new?template=bug_report.yml";
 
 const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };
 
@@ -370,9 +371,9 @@ export default function Home() {
   return (
     <main className={`app-shell theme-${settings.theme}`}>
       <header className="topbar">
-        <button className="brand" type="button" onClick={() => setView("today")} aria-label="오늘도 홈">
+        <button className="brand" type="button" onClick={() => setView("today")} aria-label="오늘도 - 네가 해낸 하루를 기억할게, 홈">
           <span className="brand-image" aria-hidden="true" />
-          <span>오늘도</span>
+          <span className="brand-copy"><strong>오늘도</strong><span className="brand-tagline"> - 네가 해낸 하루를 기억할게</span></span>
         </button>
         <nav className="main-nav" aria-label="주요 메뉴">
           <button className={view === "today" ? "active" : ""} onClick={() => setView("today")} type="button">오늘</button>
@@ -711,6 +712,11 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
         </div>
         <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
         <button className="restart-guide" type="button" onClick={onRestartGuide}>✦ &nbsp;첫 시작 가이드 다시 보기</button>
+        <a className="bug-report-link" href={BUG_REPORT_URL} target="_blank" rel="noreferrer">
+          <span className="bug-report-icon" aria-hidden="true">✺</span>
+          <span><strong>버그 제보하기</strong><small>불편한 점을 알려주면 더 다정하게 고칠게요.</small></span>
+          <b aria-hidden="true">↗</b>
+        </a>
         <button className="save-settings" type="button" onClick={onClose}>이대로 함께하기</button>
         <footer className="app-info" aria-label="앱 정보">
           <div><strong>오늘도</strong><span>데스크톱 목표 메이트</span></div>

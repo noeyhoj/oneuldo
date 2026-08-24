@@ -33,7 +33,7 @@ button { font: inherit; color: inherit; -webkit-app-region: no-drag; }
   padding: 14px 16px;
   text-align: left;
   background: rgba(255, 255, 255, .97);
-  box-shadow: 0 13px 34px rgba(57, 47, 38, .2);
+  box-shadow: none;
   display: grid;
   gap: 3px;
   cursor: pointer;

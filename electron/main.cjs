@@ -81,13 +81,14 @@ function writeMenuBarState() {
 }
 
 function createTrayIcon() {
-  const iconPath = path.join(__dirname, "assets/oneuldo-menubar.png");
+  const iconPath = path.join(__dirname, "assets/oneuldo-menubar-clear@2x.png");
   if (!fs.existsSync(iconPath)) throw new Error("오늘도 메뉴 막대 아이콘을 불러오지 못했습니다.");
   const icon = nativeImage.createFromPath(iconPath);
   if (icon.isEmpty()) throw new Error("오늘도 메뉴 막대 아이콘을 생성하지 못했습니다.");
   // Keep the coral app color instead of letting macOS tint the icon as a template.
-  icon.setTemplateImage(false);
-  return icon;
+  const retinaIcon = icon.resize({ height: 18, quality: "best" });
+  retinaIcon.setTemplateImage(false);
+  return retinaIcon;
 }
 
 function showMain(mode = "today") {
@@ -187,7 +188,7 @@ function createMainWindow() {
     minWidth: 820,
     minHeight: 620,
     show: false,
-    title: "오늘도",
+    title: "오늘도 - 네가 해낸 하루를 기억할게",
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 18, y: 19 },
     backgroundColor: "#F3EFE7",
@@ -418,7 +419,7 @@ function rebuildTrayMenu() {
   }));
   if (tray && !tray.isDestroyed()) {
     tray.setTitle("");
-    tray.setToolTip("오늘도 — 네가 해낸 하루를 기억할게");
+    tray.setToolTip("오늘도 - 네가 해낸 하루를 기억할게");
     tray.setContextMenu(trayMenu);
   }
 }

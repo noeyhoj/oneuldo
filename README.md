@@ -57,22 +57,28 @@
 - 목표 밖에서 기억난 일은 별도 표시
 - 목표 미작성과 회고 대기 상태를 메뉴 막대 아이콘의 서로 다른 점으로 표시
 - 앱을 열지 않고도 메뉴 막대에서 오늘 화면, 회고, 기록, 설정으로 이동
+- 설정의 `버그 제보하기`에서 GitHub 제보 양식으로 바로 이동
 
 ## 화면
 
 <table>
   <tr>
     <td width="50%"><img src="docs/images/remember-more.png" alt="목표 밖에서 기억난 일 추가 화면" /></td>
-    <td width="50%"><img src="docs/images/records.png" alt="오늘도 캘린더 기록 화면" /></td>
+    <td width="50%"><img src="docs/images/settings.png" alt="목표 메이트와 버그 제보가 보이는 설정 화면" /></td>
   </tr>
   <tr>
     <td align="center"><strong>목표 밖의 성취도 기록</strong></td>
-    <td align="center"><strong>다정하게 쌓이는 하루 기록</strong></td>
+    <td align="center"><strong>메이트 선택과 쉬운 버그 제보</strong></td>
   </tr>
 </table>
 
+![오늘도 캘린더 기록 화면](docs/images/records.png)
+
+<p align="center"><strong>다정하게 쌓이는 하루 기록</strong></p>
+
 <p align="center">
-  <img src="docs/images/companion.png" width="360" alt="실제 목표를 언급하는 오늘도 목표 메이트" />
+  <img src="docs/images/companion.png" width="390" alt="데스크톱 위의 오늘도 목표 메이트" /><br />
+  <strong>필요한 순간만 다정하게 말을 건네는 목표 메이트</strong>
 </p>
 
 ## 다운로드

@@ -24,7 +24,7 @@ test("server-renders the Oneuldo daily companion", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 
   const html = await response.text();
-  assert.match(html, /<title>오늘도 — 네가 해낸 하루를 기억할게<\/title>/);
+  assert.match(html, /<title>오늘도 - 네가 해낸 하루를 기억할게<\/title>/);
   assert.match(html, /오늘은 어떤 하루를/);
   assert.match(html, /오늘의 목표/);
   assert.match(html, /오늘 돌아보기/);
@@ -61,9 +61,9 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /tray\.setTitle/);
   assert.match(main, /new Tray\(createTrayIcon\(\)\)/);
   assert.match(main, /nativeImage\.createFromPath/);
-  assert.match(main, /icon\.setTemplateImage\(false\)/);
+  assert.match(main, /retinaIcon\.setTemplateImage\(false\)/);
   assert.match(main, /app\.setActivationPolicy\("accessory"\)/);
-  assert.match(main, /oneuldo-menubar\.png/);
+  assert.match(main, /oneuldo-menubar-clear@2x\.png/);
   assert.doesNotMatch(main, /9B77F9B4-1A8E-4A6F-8D73-2B6E4C1A90D2/);
   assert.match(main, /tray\.setContextMenu\(trayMenu\)/);
   assert.match(main, /tray\.popUpContextMenu\(trayMenu\)/);
@@ -107,6 +107,9 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(afterPack, /fs\.copyFileSync/);
   assert.match(page, /oneuldo:toggle-goal/);
   assert.match(page, /className="brand-image"/);
+  assert.match(page, /오늘도 - 네가 해낸 하루를 기억할게/);
+  assert.match(page, /className="bug-report-link"/);
+  assert.match(page, /issues\/new\?template=bug_report\.yml/);
   assert.match(main, /new Notification\(/);
   assert.match(main, /setVisibleOnAllWorkspaces/);
   assert.match(main, /desktop-ui-dist\/index\.html/);
@@ -147,7 +150,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /animal:\s*todayState\.settings\?\.animal/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.17\.0"/);
+  assert.match(packageJson, /"version": "1\.18\.0"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
   assert.match(page, /function OnboardingGuide/);
@@ -215,7 +218,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.17\.0"/);
+  assert.match(page, /APP_VERSION = "1\.18\.0"/);
   assert.match(page, /extraDone\?: string\[\]/);
   assert.match(page, /오늘 한 일 중에/);
   assert.match(page, /더 기억나는 게 있나요/);
@@ -240,6 +243,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(styles, /\.carryover-inbox/);
   assert.match(mate, /오늘도 네 편이야 🌿/);
   assert.match(mateScript, /오늘도 네 편이야 🌿/);
+  assert.match(mateStyles, /\.bubble[\s\S]*box-shadow: none/);
   assert.match(mateStyles, /\.bubble strong \{ color:#2f2a26; font-size: 16px; font-weight:880/);
   assert.match(nativeMenuBar, /NSRect\(x: 0\.5, y: 11\.1/);
   assert.match(page, /className="settings-scroll"/);
