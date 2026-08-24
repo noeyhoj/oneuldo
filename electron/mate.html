@@ -10,20 +10,13 @@
   <body>
     <main class="stage" aria-label="오늘도 목표 메이트">
       <button class="bubble" id="bubble" type="button" aria-label="오늘도 열기">
-        <strong>잘하고 있어</strong>
-        <span id="message">천천히 시작해도 괜찮아.</span>
+        <strong id="bubbleHeading">오늘도 네 편이야 🌿</strong>
+        <span id="message">오늘의 속도도 충분히 너다워.</span>
       </button>
       <button class="character" id="character" type="button" aria-label="목표 메이트와 대화하기">
-        <span class="tail"></span>
-        <span class="ear left"></span><span class="ear right"></span>
-        <span class="body">
-          <i class="eye left"></i><i class="eye right"></i>
-          <i class="cheek left"></i><i class="cheek right"></i><i class="mouth"></i>
-          <i class="paw left"></i><i class="paw right"></i>
-        </span>
-        <span class="shadow"></span>
+        <img class="character-image" id="characterImage" src="assets/mate-cat-sign-3d.png" alt="" draggable="false" />
+        <span class="status" aria-hidden="true"><small>오늘</small><span id="statusText">0/0</span></span>
       </button>
-      <button class="status" id="status" type="button" aria-label="오늘 목표 열기"><span id="statusText">0/0</span><small>오늘</small></button>
     </main>
     <script src="mate.js"></script>
   </body>

@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const { execFileSync } = require("child_process");
 
 // electron-builder 26.x can leave the main Electron binary looking for the
 // original helper bundle names on macOS 26. Restore those names after packing.
@@ -21,4 +22,14 @@ exports.default = async function restoreElectronHelperNames({ appOutDir, package
     const targetBinary = path.join(macOSDir, `Electron Helper${suffix}`);
     if (fs.existsSync(sourceBinary)) fs.renameSync(sourceBinary, targetBinary);
   }
+
+  const resourcesDir = path.join(appOutDir, `${product}.app`, "Contents", "Resources");
+  const helperBinary = path.join(resourcesDir, "OneuldoMenuBarNative");
+  const swiftSource = path.join(__dirname, "native-menubar.swift");
+  fs.copyFileSync(
+    path.join(__dirname, "assets", "oneuldo-menubar-clear@2x.png"),
+    path.join(resourcesDir, "oneuldo-menubar-clear@2x.png"),
+  );
+  execFileSync("xcrun", ["swiftc", "-O", swiftSource, "-o", helperBinary], { stdio: "inherit" });
+  fs.chmodSync(helperBinary, 0o755);
 };

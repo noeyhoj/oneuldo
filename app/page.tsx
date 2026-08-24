@@ -10,13 +10,24 @@ type Goal = {
   reason?: string;
   note?: string;
   carry?: boolean;
+  carriedFrom?: string;
 };
 
 type DailyRecord = {
   date: string;
   done: string[];
+  extraDone?: string[];
   unfinished: { title: string; reason: string; note: string; carry: boolean }[];
+  headline?: string;
   note: string;
+  syncedUntilMidnight?: boolean;
+};
+
+type PendingCarryover = {
+  id: string;
+  title: string;
+  sourceDate: string;
+  targetDate: string;
 };
 
 type Settings = {
@@ -25,6 +36,7 @@ type Settings = {
   cheer: "거의 없음" | "가끔" | "자주";
   character: boolean;
   theme: "coral" | "sage" | "lavender";
+  animal: "cat" | "dog" | "rabbit" | "bear";
 };
 
 const REASONS = ["시간이 부족했어요", "우선순위가 바뀌었어요", "생각보다 어려웠어요", "컨디션이 좋지 않았어요"];
@@ -40,13 +52,81 @@ const dateKey = (offset = 0) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
+const readPendingCarryovers = (): PendingCarryover[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem("oneuldo-pending-carryovers") || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+};
+
+const getDueCarryovers = (today: string) => readPendingCarryovers().filter((item) => item.targetDate <= today);
+
+const addDaysToDateKey = (sourceDate: string, days: number) => {
+  const date = new Date(`${sourceDate}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+const KOREAN_COUNTS = ["영", "한", "두", "세", "네", "다섯"];
+const KOREAN_ORDINALS = ["영 번째", "첫 번째", "두 번째", "세 번째", "네 번째", "다섯 번째"];
+const koreanCount = (value: number) => KOREAN_COUNTS[value] || String(value);
+const koreanOrdinal = (value: number) => KOREAN_ORDINALS[value] || `${value}번째`;
+const humanizeCountPhrases = (text = "") => text.replace(/([1-5])가지/g, (_, value: string) => `${koreanCount(Number(value))} 가지`);
+
+const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfinished"]) => {
+  const joined = done.join(" ");
+  const has = (words: string[]) => words.some((word) => joined.includes(word));
+  const carried = unfinished.filter((item) => item.carry);
+  const reasons = unfinished.map((item) => item.reason);
+  const allDone = done.length > 0 && unfinished.length === 0;
+
+  if (!done.length) {
+    if (reasons.some((reason) => reason.includes("컨디션"))) return { headline: "오늘은 나를 쉬게 해준 날이야.", note: "몸과 마음이 지친 날에는 쉬어가는 것도 꼭 필요한 일이야. 오늘을 돌아봐준 것만으로 충분해." };
+    if (carried.length) return { headline: "내일의 나에게 길을 잘 남겨뒀어.", note: "오늘 다 하지 못했어도 괜찮아. 다시 이어갈 일을 스스로 골라둔 것도 분명한 한 걸음이야." };
+    return { headline: "오늘을 돌아본 것부터 잘했어.", note: "완료 표시가 없는 날에도 애쓴 시간은 사라지지 않아. 여기까지 와서 하루를 살펴본 마음을 기억할게." };
+  }
+  if (allDone) return { headline: "마음에 담은 일을 모두 해냈어.", note: "오늘의 약속을 하나씩 지켜낸 리듬이 참 멋져. 이 뿌듯함을 오래 기억해둘게." };
+  if (reasons.some((reason) => reason.includes("컨디션")) && has(["산책", "운동", "요가", "달리기", "스트레칭"])) return { headline: "피곤한 날에도 나를 잘 돌봤어.", note: "컨디션이 좋지 않은 날에도 나를 위한 움직임은 챙겼어. 무리하지 않으면서도 마음을 돌본 오늘이 참 다정해." };
+  if (has(["산책", "운동", "요가", "달리기", "스트레칭"])) return { headline: "오늘, 나를 잘 돌봤어.", note: "바쁜 하루 속에서도 몸과 마음을 위한 시간을 만들었어. 나를 챙긴 선택도 소중한 성취야." };
+  if (has(["공부", "책", "읽기", "강의", "알고리즘", "연습"])) return { headline: "오늘의 배움을 차곡차곡 쌓았어.", note: "지금은 작아 보여도 오늘 익힌 한 가지가 내일의 나를 든든하게 만들어줄 거야." };
+  if (has(["기획", "프로젝트", "포트폴리오", "보고서", "회의", "문구", "화면", "PR"])) return { headline: "복잡한 일을 한 걸음 앞으로 옮겼어.", note: "막연했던 일을 눈에 보이는 모양으로 바꿔냈어. 오늘 만든 한 조각이 다음 걸음을 더 가볍게 해줄 거야." };
+  if (has(["전화", "연락", "가족", "친구", "만나"])) return { headline: "따뜻한 마음을 잘 건넸어.", note: "소중한 사람을 떠올리고 마음을 건넨 일도 오늘의 아름다운 성취야." };
+  if (carried.length) return { headline: `${koreanCount(done.length)} 가지나 해내고, 내일의 길도 골랐어.`, note: "해낸 일은 충분히 기뻐하고, 남은 일은 부담 대신 선택으로 남겼어. 오늘을 참 현명하게 정리했어." };
+  return { headline: `오늘 ${koreanCount(done.length)} 가지나 앞으로 나아갔어.`, note: "크고 작은 일을 해낸 순간들이 모여 오늘의 발자국이 됐어. 네가 움직인 만큼을 다정하게 기억할게." };
+};
+
 const SAMPLE_RECORDS: DailyRecord[] = [
-  { date: dateKey(-3), done: ["프로젝트 회의", "알고리즘 문제 1개"], unfinished: [], note: "계획보다 적어도, 꼭 하고 싶은 건 다 해냈어." },
+  { date: dateKey(-3), done: ["프로젝트 회의", "알고리즘 문제 1개"], unfinished: [], note: "계획보다 적어도, 꼭 해내고 싶었던 건 다 해냈어." },
   { date: dateKey(-2), done: ["포트폴리오 문구 다듬기", "산책 20분"], unfinished: [{ title: "책 30쪽 읽기", reason: "컨디션이 좋지 않았어요", note: "퇴근 후에 너무 피곤했다.", carry: true }], note: "피곤한 날에도 나를 위한 산책은 챙겼어." },
   { date: dateKey(-1), done: ["PR 작성하기", "운동 30분", "엄마에게 전화하기"], unfinished: [], note: "오늘 세 가지나 앞으로 나아갔어." },
 ];
 
-const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral" };
+const MATE_OPTIONS = [
+  { value: "cat", label: "고양이", description: "조용히 곁을 지켜줄게요", asset: "./mates/mate-cat-sign-3d.png" },
+  { value: "dog", label: "강아지", description: "작은 성취도 함께 기뻐해요", asset: "./mates/mate-dog-sign-3d.png" },
+  { value: "rabbit", label: "토끼", description: "당신의 리듬을 천천히 따라갈게요", asset: "./mates/mate-rabbit-sign-3d.png" },
+  { value: "bear", label: "곰", description: "지친 날에는 포근하게 응원해요", asset: "./mates/mate-bear-sign-3d.png" },
+] as const;
+const MATE_CHEERS = [
+  "오늘의 속도도 충분히 너다워 🌿",
+  "작은 한 칸도 분명한 전진이야.",
+  "조금 지친 날엔 숨을 고르는 것도 좋은 일이야.",
+  "서두르지 않아도 방향은 그대로야.",
+  "지금 여기까지 온 것도 참 잘했어.",
+  "오늘의 작은 용기를 내가 기억할게 ✨",
+];
+const goalAwareMateCheers = (goals: Goal[]) => {
+  const openGoal = goals.find((goal) => !goal.done);
+  const doneGoal = goals.find((goal) => goal.done);
+  return [
+    ...MATE_CHEERS,
+    openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
+    doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
+  ].filter((message): message is string => Boolean(message));
+};
+const APP_VERSION = "1.17.0";
+
+const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };
 
 const timeToMinutes = (value: string) => {
   const [hour = "0", minute = "0"] = value.split(":");
@@ -75,19 +155,29 @@ export default function Home() {
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(initialSettings);
-  const [message, setMessage] = useState("이미 하나를 해냈어 ✨");
+  const [message, setMessage] = useState("오늘의 속도도 충분히 너다워 🌿");
   const [selectedDate, setSelectedDate] = useState(dateKey(-1));
+  const [activeDate, setActiveDate] = useState(dateKey());
   const [hydrated, setHydrated] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingFresh, setOnboardingFresh] = useState(false);
+  const [dueCarryovers, setDueCarryovers] = useState<PendingCarryover[]>([]);
 
   /* Local storage is an external client-only source, so hydration intentionally updates state here. */
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const storedGoals = localStorage.getItem("oneuldo-goals");
+    const storedGoalsDate = localStorage.getItem("oneuldo-goals-date");
     const storedRecords = localStorage.getItem("oneuldo-records");
     const storedSettings = localStorage.getItem("oneuldo-settings");
-    if (storedGoals) setGoals(JSON.parse(storedGoals));
+    const today = dateKey();
+    const due = getDueCarryovers(today);
+    setDueCarryovers(due);
+    if (storedGoals) {
+      const parsedGoals = JSON.parse(storedGoals) as Goal[];
+      if (storedGoalsDate && storedGoalsDate !== today) setGoals([]);
+      else setGoals(parsedGoals);
+    } else if (due.length) setGoals([]);
     if (storedRecords) setRecords(JSON.parse(storedRecords));
     if (storedSettings) setSettings(keepTimesInOrder({ ...initialSettings, ...JSON.parse(storedSettings) }));
     const onboarded = localStorage.getItem("oneuldo-onboarded");
@@ -107,6 +197,9 @@ export default function Home() {
     } else if (!onboarded) {
       localStorage.setItem("oneuldo-onboarded", "1");
     }
+    localStorage.setItem("oneuldo-goals-date", today);
+    setActiveDate(today);
+    if (due.length) setMessage(`${koreanCount(due.length)} 가지가 어제에서 기다리고 있어. 오늘에 넣을 일만 천천히 골라보자 🌿`);
     setHydrated(true);
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -114,25 +207,80 @@ export default function Home() {
   useEffect(() => {
     if (!hydrated) return;
     localStorage.setItem("oneuldo-goals", JSON.stringify(goals));
+    localStorage.setItem("oneuldo-goals-date", activeDate);
     localStorage.setItem("oneuldo-records", JSON.stringify(records));
     localStorage.setItem("oneuldo-settings", JSON.stringify(settings));
-  }, [goals, records, settings, hydrated]);
+  }, [goals, records, settings, activeDate, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const rollOverDay = () => {
+      const today = dateKey();
+      if (today === activeDate) return;
+      const due = getDueCarryovers(today);
+      setGoals([]);
+      setDueCarryovers(due);
+      setActiveDate(today);
+      setMessage(due.length ? `${koreanCount(due.length)} 가지가 어제에서 기다리고 있어. 오늘에 넣을 일만 골라도 충분해 🌿` : "새로운 하루야. 오늘 마음에 담아둘 일을 천천히 골라보자.");
+    };
+    const timer = window.setInterval(rollOverDay, 30_000);
+    window.addEventListener("focus", rollOverDay);
+    document.addEventListener("visibilitychange", rollOverDay);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", rollOverDay);
+      document.removeEventListener("visibilitychange", rollOverDay);
+    };
+  }, [activeDate, hydrated]);
 
   const completeCount = goals.filter((goal) => goal.done).length;
   const dateLabel = useMemo(() => new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date()), []);
+  const reviewedToday = records.some((record) => record.date === activeDate);
+  const talkToGoalMate = () => {
+    const candidates = goalAwareMateCheers(goals).filter((candidate) => candidate !== message);
+    setMessage(candidates[Math.floor(Math.random() * candidates.length)] || MATE_CHEERS[0]);
+  };
+
+  useEffect(() => {
+    if (!hydrated || !reviewedToday) return;
+    const goalDone = goals.filter((goal) => goal.done).map((goal) => goal.title);
+    const unfinished = goals.filter((goal) => !goal.done).map((goal) => ({
+      title: goal.title,
+      reason: goal.reason || "회고 후에 더한 목표예요",
+      note: goal.note || "",
+      carry: Boolean(goal.carry),
+    }));
+    // A saved review mirrors the live goal list until the date rolls over.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRecords((current) => current.map((record) => {
+      if (record.date !== activeDate) return record;
+      const extraDone = record.extraDone || [];
+      const done = [...new Set([...goalDone, ...extraDone])];
+      const reflection = buildCompanionReflection(done, unfinished);
+      const syncedRecord: DailyRecord = { ...record, done, extraDone, unfinished, headline: reflection.headline, note: reflection.note, syncedUntilMidnight: true };
+      return JSON.stringify(record) === JSON.stringify(syncedRecord) ? record : syncedRecord;
+    }));
+
+    const otherDays = readPendingCarryovers().filter((item) => item.sourceDate !== activeDate);
+    const tomorrow = addDaysToDateKey(activeDate, 1);
+    const currentCarries = goals
+      .filter((goal) => !goal.done && goal.carry)
+      .map<PendingCarryover>((goal) => ({ id: goal.id, title: goal.title, sourceDate: activeDate, targetDate: tomorrow }));
+    localStorage.setItem("oneuldo-pending-carryovers", JSON.stringify([...otherDays, ...currentCarries]));
+  }, [goals, activeDate, hydrated, reviewedToday]);
 
   const addGoal = (event: FormEvent) => {
     event.preventDefault();
     const title = newGoal.trim();
     if (!title) return;
     if (goals.length >= 5) {
-      setMessage("오늘은 이 다섯 가지면 충분해 🌿");
+      setMessage("오늘은 이 다섯 가지면 충분해. 욕심내지 않아도 괜찮아 🌿");
       return;
     }
     setGoals((current) => [...current, { id: crypto.randomUUID(), title, done: false }]);
     setNewGoal("");
     setAdding(false);
-    setMessage("오늘의 마음을 기억해둘게.");
+    setMessage("오늘 지키고 싶은 작은 약속, 내가 잘 기억해둘게.");
   };
 
   const toggleGoal = (id: string) => {
@@ -140,26 +288,60 @@ export default function Home() {
     setGoals((current) => current.map((goal) => goal.id === id ? { ...goal, done: !goal.done } : goal));
     if (target && !target.done) {
       const nextCount = completeCount + 1;
-      setMessage(nextCount === 1 ? "좋은 시작인데? 🎉" : nextCount === goals.length ? "오늘의 목표를 다 해냈네. 정말 멋져!" : `오늘 벌써 ${nextCount}번째 완료야 ✨`);
+      setMessage(nextCount === 1 ? "첫 번째 약속을 지켰네. 오늘의 좋은 시작이야 🎉" : nextCount === goals.length ? "오늘의 약속을 모두 지켰네. 정말 다정한 하루야!" : `오늘의 ${koreanOrdinal(nextCount)} 작은 성취도 잘 기억할게 ✨`);
     } else {
-      setMessage("다시 천천히 해보면 돼.");
+      setMessage("괜찮아. 다시 시작하고 싶을 때 천천히 돌아오면 돼.");
     }
   };
+
+  useEffect(() => {
+    const handleMenuToggle = (event: Event) => toggleGoal((event as CustomEvent<string>).detail);
+    window.addEventListener("oneuldo:toggle-goal", handleMenuToggle);
+    return () => window.removeEventListener("oneuldo:toggle-goal", handleMenuToggle);
+  });
 
   const updateGoal = (id: string, patch: Partial<Goal>) => {
     setGoals((current) => current.map((goal) => goal.id === id ? { ...goal, ...patch } : goal));
   };
 
-  const finishReview = () => {
+  const resolveCarryover = (item: PendingCarryover, action: "accept" | "skip") => {
+    if (action === "accept" && goals.length >= 5) {
+      setMessage("오늘의 다섯 칸이 모두 찼어. 한 칸을 비우면 이 일을 다시 선택할 수 있어.");
+      return;
+    }
+    const alreadyAdded = goals.some((goal) => goal.title === item.title);
+    if (action === "accept" && !alreadyAdded) {
+      setGoals((current) => [...current, { id: `carry-${item.id}-${activeDate}`, title: item.title, done: false, carriedFrom: item.sourceDate }]);
+    }
+    const isTarget = (pending: PendingCarryover) => pending.id === item.id && pending.sourceDate === item.sourceDate;
+    const nextPending = readPendingCarryovers().filter((pending) => !isTarget(pending));
+    localStorage.setItem("oneuldo-pending-carryovers", JSON.stringify(nextPending));
+    setDueCarryovers((current) => current.filter((pending) => !isTarget(pending)));
+    setMessage(action === "accept" ? alreadyAdded ? "이미 오늘의 목표에 담겨 있어서 한 번만 남겨뒀어." : `“${item.title}”을 오늘의 리듬에 맞게 다시 담았어.` : `“${item.title}”은 오늘 목록에 넣지 않을게. 선택하지 않아도 괜찮아.`);
+  };
+
+  const finishReview = (rememberedDone: string[]) => {
+    const unfinished = goals.filter((goal) => !goal.done).map((goal) => ({ title: goal.title, reason: goal.reason || "이유를 남기지 않았어요", note: goal.note || "", carry: Boolean(goal.carry) }));
+    const goalDone = goals.filter((goal) => goal.done).map((goal) => goal.title);
+    const extraDone = [...new Set(rememberedDone.map((item) => item.trim()).filter((item) => item && !goalDone.includes(item)))];
+    const done = [...goalDone, ...extraDone];
+    const reflection = buildCompanionReflection(done, unfinished);
+    const sourceDate = activeDate;
+    const carryovers = goals.filter((goal) => !goal.done && goal.carry).map<PendingCarryover>((goal) => ({ id: goal.id, title: goal.title, sourceDate, targetDate: addDaysToDateKey(sourceDate, 1) }));
+    const pending = readPendingCarryovers().filter((item) => item.sourceDate !== sourceDate);
+    localStorage.setItem("oneuldo-pending-carryovers", JSON.stringify([...pending, ...carryovers]));
     const record: DailyRecord = {
-      date: dateKey(),
-      done: goals.filter((goal) => goal.done).map((goal) => goal.title),
-      unfinished: goals.filter((goal) => !goal.done).map((goal) => ({ title: goal.title, reason: goal.reason || "이유를 남기지 않았어요", note: goal.note || "", carry: Boolean(goal.carry) })),
-      note: completeCount ? `오늘 ${completeCount}가지나 앞으로 나아갔어.` : "오늘을 돌아본 것만으로도 충분해.",
+      date: sourceDate,
+      done,
+      extraDone,
+      unfinished,
+      headline: reflection.headline,
+      note: reflection.note,
+      syncedUntilMidnight: true,
     };
     setRecords((current) => [...current.filter((item) => item.date !== record.date), record].sort((a, b) => a.date.localeCompare(b.date)));
     setSelectedDate(record.date);
-    setMessage("오늘의 기록이 하나 쌓였어 🌙");
+    setMessage(extraDone.length ? `목표 밖에서도 ${koreanCount(extraDone.length)} 가지나 더 발견했네. 오늘의 기록에 다정하게 남겨뒀어 ✨` : carryovers.length ? `오늘의 기록을 남겼어. ${koreanCount(carryovers.length)} 가지는 내일 TODO에서 다시 만날게 🌙` : reflection.note);
     setView("records");
   };
 
@@ -176,7 +358,7 @@ export default function Home() {
     setOnboardingOpen(false);
     setOnboardingFresh(false);
     setView("today");
-    setMessage("안녕! 오늘부터 네가 해낸 일을 기억할게 🌿");
+    setMessage("반가워! 오늘부터 네가 남긴 작은 발자국들을 다정하게 기억할게 🌿");
   };
 
   const skipOnboarding = () => {
@@ -189,7 +371,7 @@ export default function Home() {
     <main className={`app-shell theme-${settings.theme}`}>
       <header className="topbar">
         <button className="brand" type="button" onClick={() => setView("today")} aria-label="오늘도 홈">
-          <span className="brand-mark" aria-hidden="true"><i /><i /></span>
+          <span className="brand-image" aria-hidden="true" />
           <span>오늘도</span>
         </button>
         <nav className="main-nav" aria-label="주요 메뉴">
@@ -207,7 +389,18 @@ export default function Home() {
           <div className="day-column">
             <div className="date-kicker">{dateLabel}</div>
             <h1>오늘은 어떤 하루를<br />보내고 싶어?</h1>
-            <p className="intro">오늘 꼭 하고 싶은 것만 적어봐.<br />세 가지면 충분해.</p>
+            <p className="intro">오늘 꼭 해내고 싶은 것만 적어봐.<br />세 가지면 충분해.</p>
+
+            {!!dueCarryovers.length && <section className="carryover-inbox" aria-label="어제에서 이어갈 일 고르기">
+              <div className="carryover-head">
+                <div><span aria-hidden="true">↗</span><div><strong>어제에서 이어갈 일</strong><small>오늘에 넣을 일만 골라보세요.</small></div></div>
+                <em>남은 자리 {Math.max(0, 5 - goals.length)}개</em>
+              </div>
+              <div className="carryover-list">{dueCarryovers.map((item) => <article className="carryover-row" key={`${item.sourceDate}-${item.id}`}>
+                <div><small>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(`${item.sourceDate}T12:00:00`))}에서</small><strong>{item.title}</strong></div>
+                <div className="carryover-actions"><button type="button" onClick={() => resolveCarryover(item, "skip")}>이번에는 넘기기</button><button type="button" disabled={goals.length >= 5} onClick={() => resolveCarryover(item, "accept")}>오늘에 추가</button></div>
+              </article>)}</div>
+            </section>}
 
             <div className="goal-card">
               <div className="goal-card-head">
@@ -220,14 +413,14 @@ export default function Home() {
                     <button className="check-button" type="button" onClick={() => toggleGoal(goal.id)} aria-label={`${goal.title} ${goal.done ? "미완료로 변경" : "완료"}`}>
                       <span aria-hidden="true">{goal.done ? "✓" : ""}</span>
                     </button>
-                    <button className="goal-title" type="button" onClick={() => toggleGoal(goal.id)}>{goal.title}</button>
+                    <button className="goal-title" type="button" onClick={() => toggleGoal(goal.id)}><span>{goal.title}</span>{goal.carriedFrom && <small>어제에서 이어온 일</small>}</button>
                     <button className="delete-goal" type="button" onClick={() => setGoals((current) => current.filter((item) => item.id !== goal.id))} aria-label={`${goal.title} 삭제`}>×</button>
                   </div>
                 ))}
               </div>
               {adding ? (
                 <form className="add-form" onSubmit={addGoal}>
-                  <input value={newGoal} maxLength={60} onChange={(event) => setNewGoal(event.target.value)} placeholder="오늘 꼭 하고 싶은 일" aria-label="새 목표" />
+                  <input value={newGoal} maxLength={60} onChange={(event) => setNewGoal(event.target.value)} placeholder="오늘 꼭 해내고 싶은 일" aria-label="새 목표" />
                   <button type="submit">추가</button>
                   <button type="button" onClick={() => setAdding(false)}>취소</button>
                 </form>
@@ -238,7 +431,7 @@ export default function Home() {
             <button className="mobile-review" type="button" onClick={() => setView("review")}>오늘 해낸 일 돌아보기 <span>→</span></button>
           </div>
 
-          {settings.character && <GoalMate message={message} onClick={() => setMessage(completeCount ? `오늘 ${completeCount}가지나 해냈어. 잘하고 있어!` : "천천히 시작해도 괜찮아.")} />}
+          {settings.character && <GoalMate message={message} animal={settings.animal} completed={completeCount} total={goals.length} onClick={talkToGoalMate} />}
         </section>
       )}
 
@@ -252,34 +445,54 @@ export default function Home() {
   );
 }
 
-function GoalMate({ message, onClick }: { message: string; onClick: () => void }) {
+function GoalMate({ message, animal, completed, total, onClick }: { message: string; animal: Settings["animal"]; completed: number; total: number; onClick: () => void }) {
+  const progress = total ? completed / total : 0;
+  const progressColor = progress >= 1 ? "#4f9a68" : progress >= .5 ? "#e28a38" : progress > 0 ? "#ef7654" : "#8f735e";
+  const selectedMate = MATE_OPTIONS.find((option) => option.value === animal) || MATE_OPTIONS[0];
   return (
     <aside className="mate-zone" aria-label="목표 메이트">
       <button className="speech" type="button" onClick={onClick}>
-        <strong>{message.includes("시작") ? "좋은 시작인데?" : "잘하고 있어"}</strong>
-        <span>{message}</span>
+        <strong>{message.includes("해냈") || message.includes("성취") ? "오늘의 발자국이야" : "오늘도 네 편이야 🌿"}</strong>
+        <span>{humanizeCountPhrases(message)}</span>
       </button>
-      <button className="mate" type="button" onClick={onClick} aria-label="목표 메이트와 대화하기">
-        <span className="mate-tail" />
-        <span className="mate-ear left" /><span className="mate-ear right" />
-        <span className="mate-body"><i className="eye left" /><i className="eye right" /><i className="cheek left" /><i className="cheek right" /><i className="mouth" /><i className="paw left" /><i className="paw right" /></span>
-        <span className="mate-shadow" />
+      <button className={`mate animal-${animal}`} type="button" onClick={onClick} aria-label={`${selectedMate.label} 목표 메이트와 대화하기`}>
+        <span className="mate-art" aria-hidden="true" style={{ backgroundImage: `url(${selectedMate.asset})` }} />
+        <span className="mate-status" aria-hidden="true"><small>오늘</small><strong style={{ color: progressColor }}>{completed}/{total}</strong></span>
       </button>
     </aside>
   );
 }
 
-function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goals: Goal[]; completeCount: number; onUpdate: (id: string, patch: Partial<Goal>) => void; onBack: () => void; onFinish: () => void }) {
-  const cards = useMemo(() => [...goals.filter((goal) => goal.done).map((goal) => ({ type: "done" as const, goal })), ...goals.filter((goal) => !goal.done).map((goal) => ({ type: "difficult" as const, goal }))], [goals]);
+function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goals: Goal[]; completeCount: number; onUpdate: (id: string, patch: Partial<Goal>) => void; onBack: () => void; onFinish: (rememberedDone: string[]) => void }) {
+  const cards = useMemo<Array<{ type: "done" | "difficult"; goal: Goal } | { type: "empty-done" }>>(() => {
+    const doneCards = goals.filter((goal) => goal.done).map((goal) => ({ type: "done" as const, goal }));
+    const difficultCards = goals.filter((goal) => !goal.done).map((goal) => ({ type: "difficult" as const, goal }));
+    return [...(doneCards.length ? doneCards : [{ type: "empty-done" as const }]), ...difficultCards];
+  }, [goals]);
   const [activeIndex, setActiveIndex] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [exiting, setExiting] = useState<"left" | "right" | null>(null);
+  const [rememberedInput, setRememberedInput] = useState("");
+  const [rememberedDone, setRememberedDone] = useState<string[]>([]);
+  const [memoryFinished, setMemoryFinished] = useState(false);
   const dragStart = useRef(0);
   const dragOffset = useRef(0);
   const draggingActive = useRef(false);
   const activeCard = cards[activeIndex];
-  const reviewComplete = activeIndex >= cards.length;
+  const cardsComplete = activeIndex >= cards.length;
+  const memoryStep = cardsComplete && !memoryFinished;
+  const reviewComplete = cardsComplete && memoryFinished;
+  const carryCount = goals.filter((goal) => !goal.done && goal.carry).length;
+  const reviewedCount = completeCount + rememberedDone.length;
+
+  const rememberDone = (event: FormEvent) => {
+    event.preventDefault();
+    const title = rememberedInput.trim();
+    if (!title || rememberedDone.includes(title) || rememberedDone.length >= 5) return;
+    setRememberedDone((current) => [...current, title]);
+    setRememberedInput("");
+  };
 
   const advance = (direction: "left" | "right") => {
     if (!activeCard || exiting) return;
@@ -340,27 +553,32 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
 
         <div className="review-stage">
           <div className="review-progress" aria-live="polite">
-            <div><span style={{ width: `${cards.length ? Math.min(activeIndex, cards.length) / cards.length * 100 : 100}%` }} /></div>
-            <strong>{reviewComplete ? "돌아보기 완료" : `${activeIndex + 1} / ${cards.length}`}</strong>
+            <div><span style={{ width: `${(Math.min(activeIndex, cards.length) + (memoryFinished ? 1 : 0)) / (cards.length + 1) * 100}%` }} /></div>
+            <strong>{reviewComplete ? "돌아보기 완료" : memoryStep ? "하나 더 떠올리기" : `${activeIndex + 1} / ${cards.length + 1}`}</strong>
           </div>
 
           {!reviewComplete && activeCard && <div className="review-card-stack" aria-label={`${activeIndex + 1}번째 회고 카드`}>
             <div className="stack-sheet back" aria-hidden="true" /><div className="stack-sheet middle" aria-hidden="true" />
             <article
-              className={`review-card review-deck-card ${activeCard.type === "done" ? "done-swipe-card" : "difficult-swipe-card"} ${dragging ? "is-dragging" : ""} ${exiting ? `exit-${exiting}` : ""}`}
-              style={!exiting ? { transform: `translateX(${dragX}px) rotate(${dragX / 38}deg)` } : undefined}
+              key={activeCard.type === "empty-done" ? "empty-done" : activeCard.goal.id}
+              className={`review-card review-deck-card ${activeCard.type === "difficult" ? "difficult-swipe-card" : activeCard.type === "empty-done" ? "empty-done-swipe-card" : "done-swipe-card"} ${dragging ? "is-dragging" : ""} ${exiting ? `exit-${exiting}` : ""}`}
+              style={!exiting && dragX !== 0 ? { transform: `translateX(${dragX}px) rotate(${dragX / 38}deg)` } : undefined}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
               onPointerCancel={handlePointerCancel}
             >
               <span className="drag-choice left" style={{ opacity: Math.max(0, -dragX / 90) }}>{activeCard.type === "difficult" ? "그만하기" : "확인했어요"}</span>
-              <span className="drag-choice right" style={{ opacity: Math.max(0, dragX / 90) }}>{activeCard.type === "difficult" ? "내일 다시 하기" : "확인했어요"}</span>
+              <span className="drag-choice right" style={{ opacity: Math.max(0, dragX / 90) }}>{activeCard.type === "difficult" ? "내일 TODO에 넣기" : "확인했어요"}</span>
 
               {activeCard.type === "done" ? <>
                 <div className="review-card-kind done"><span>✓</span><div><small>오늘 해낸 일</small><strong>{completeCount}가지 중 {goals.filter((goal) => goal.done).findIndex((goal) => goal.id === activeCard.goal.id) + 1}번째</strong></div></div>
                 <div className="done-card-center"><span>✨</span><h2>{activeCard.goal.title}</h2><p>오늘 분명히 앞으로 나아간 순간이에요.</p></div>
                 <p className="swipe-help">← 어느 방향으로든 넘겨 다음 카드 보기 →</p>
+              </> : activeCard.type === "empty-done" ? <>
+                <div className="review-card-kind done empty"><span>☁</span><div><small>오늘 해낸 일</small><strong>비어 있는 날도 오늘의 기록이에요</strong></div></div>
+                <div className="done-card-center empty-done-center"><span>☾</span><h2>오늘 완료로 표시한 일은<br />아직 없어요.</h2><p>그래도 오늘을 돌아보러 온 것부터 충분한 한 걸음이에요.</p></div>
+                <p className="swipe-help">← 어느 방향으로든 넘겨 어려웠던 일 돌아보기 →</p>
               </> : <>
                 <div className="review-card-kind difficult"><span>☼</span><div><small>오늘 하기 어려웠던 일</small><strong>마음을 가볍게 정리해봐요</strong></div></div>
                 <h2 className="review-task-title">{activeCard.goal.title}</h2>
@@ -369,20 +587,31 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
                   {REASONS.map((reason) => <button className={activeCard.goal.reason === reason ? "selected" : ""} type="button" key={reason} onClick={() => onUpdate(activeCard.goal.id, { reason })}>{reason}</button>)}
                 </div>
                 <textarea value={activeCard.goal.note || ""} onChange={(event) => onUpdate(activeCard.goal.id, { note: event.target.value })} placeholder="이유를 한 줄로 남겨보세요 (선택)" aria-label={`${activeCard.goal.title} 회고`} />
-                <div className="swipe-decisions"><button type="button" className="stop" onClick={() => advance("left")}><span>←</span> 이번에는 그만하기</button><button type="button" className="carry" onClick={() => advance("right")}>내일 다시 하기 <span>→</span></button></div>
+                <div className="swipe-decisions"><button type="button" className="stop" onClick={() => advance("left")}><span>←</span> 이번에는 그만하기</button><button type="button" className="carry" onClick={() => advance("right")}>내일 TODO에 넣기 <span>→</span></button></div>
               </>}
             </article>
           </div>}
 
+          {memoryStep && <article className="review-card memory-card">
+            <div className="memory-card-kind"><span aria-hidden="true">✦</span><div><small>목표 밖에서 발견한 일</small><strong>오늘의 기억을 한 번 더 살펴봐요</strong></div></div>
+            <div className="memory-card-copy"><span aria-hidden="true">💭</span><h2>오늘 한 일 중에<br />더 기억나는 게 있나요?</h2><p>계획하지 않았던 일도 괜찮아요.<br />작은 움직임까지 오늘의 기록으로 남길게요.</p></div>
+            <form className="memory-form" onSubmit={rememberDone}>
+              <input value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} placeholder="예: 밀린 설거지를 했다" aria-label="목표 외에 오늘 해낸 일" />
+              <button type="submit" disabled={!rememberedInput.trim() || rememberedDone.length >= 5}>기록하기</button>
+            </form>
+            {!!rememberedDone.length && <div className="remembered-list" aria-label="추가로 기억난 일">{rememberedDone.map((item) => <span key={item}><i aria-hidden="true">✓</i>{item}<button type="button" onClick={() => setRememberedDone((current) => current.filter((remembered) => remembered !== item))} aria-label={`${item} 삭제`}>×</button></span>)}</div>}
+            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>{rememberedDone.length ? "이만큼 기억할게요" : "지금은 더 기억나는 일이 없어요"}<b>→</b></button>
+          </article>}
+
           {reviewComplete && <article className="review-card review-complete-card">
             <span className="complete-mate" aria-hidden="true">•ᴗ•</span>
             <p>오늘의 카드 정리 완료</p>
-            <h2>{completeCount ? `${completeCount}가지나 해낸 오늘을 기억할게요.` : "오늘을 돌아본 것만으로도 충분해요."}</h2>
-            <span>선택한 내용은 내 기록에 차분히 남겨둘게요.</span>
-            <button className="finish-review" type="button" onClick={onFinish}>오늘의 기록 남기기 <b>→</b></button>
+            <h2>{reviewedCount ? `${koreanCount(reviewedCount)} 가지나 해낸 오늘을 기억할게요.` : "오늘을 돌아본 것만으로도 충분해요."}</h2>
+            <span>{rememberedDone.length ? `${koreanCount(rememberedDone.length)} 가지를 목표 밖에서 더 발견했어요.` : carryCount ? `${koreanCount(carryCount)} 가지는 내일 TODO에 다시 나타나요.` : "선택한 내용은 내 기록에 차분히 남겨둘게요."}</span>
+            <button className="finish-review" type="button" onClick={() => onFinish(rememberedDone)}>오늘의 기록 남기기 <b>→</b></button>
           </article>}
 
-          <div className="review-stage-nav"><button type="button" onClick={previousCard} disabled={activeIndex === 0 || Boolean(exiting)}>← 이전 카드</button>{!reviewComplete && activeCard?.type === "done" && <button type="button" onClick={() => advance("right")}>다음 카드 →</button>}</div>
+          <div className="review-stage-nav"><button type="button" onClick={() => { if (memoryStep) setActiveIndex(Math.max(0, cards.length - 1)); else previousCard(); }} disabled={(activeIndex === 0 && !memoryStep) || Boolean(exiting)}>← 이전 카드</button>{!cardsComplete && activeCard?.type !== "difficult" && <button type="button" onClick={() => advance("right")}>다음 카드 →</button>}</div>
         </div>
       </div>
     </section>
@@ -395,6 +624,7 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
   const lastDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
   const calendar = [...Array(firstDay).fill(null), ...Array.from({ length: lastDate }, (_, index) => index + 1)];
   const recordDates = new Set(records.map((record) => record.date));
+  const reflection = selected ? buildCompanionReflection(selected.done, selected.unfinished) : undefined;
   const fullDate = (day: number) => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
   return (
     <section className="records-view">
@@ -409,17 +639,17 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
 
         <article className="daily-card">
           {selected ? <>
-            <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>오늘도 꽤 잘했어.</h2></div><span className="mini-mate">•ᴗ•</span></div>
-            <div className="record-section"><p>✨ 오늘 해낸 일</p><ul>{selected.done.map((item) => <li key={item}><span>✓</span>{item}</li>)}</ul></div>
+            <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>{humanizeCountPhrases(selected.headline || reflection?.headline)}</h2></div><div className="record-head-side">{selected.syncedUntilMidnight && selected.date === dateKey() && <small>자정까지 오늘 TODO와 동기화 중</small>}<span className="mini-mate">•ᴗ•</span></div></div>
+            <div className="record-section"><p>✨ 오늘 해낸 일</p><ul>{selected.done.map((item) => <li className={selected.extraDone?.includes(item) ? "remembered-done" : ""} key={item}><span>✓</span><div><strong>{item}</strong>{selected.extraDone?.includes(item) && <small>목표 밖에서 기억난 일</small>}</div></li>)}</ul></div>
             {!!selected.unfinished.length && <div className="record-section unfinished">
               <p className="unfinished-heading"><span aria-hidden="true">↗</span>오늘 하기 어려웠던 일 <em>{selected.unfinished.length}</em></p>
               <div className="unfinished-list">{selected.unfinished.map((item) => <article className="unfinished-item" key={item.title}>
                 <span className="unfinished-mark" aria-hidden="true">○</span>
                 <div className="unfinished-copy"><strong>{item.title}</strong>{item.note && <q>{item.note}</q>}</div>
-                <div className="unfinished-meta"><span>{item.reason}</span><em className={item.carry ? "carry" : "stop"}>{item.carry ? "↗ 내일 이어하기" : "✓ 이번에는 그만하기"}</em></div>
+                <div className="unfinished-meta"><span>{item.reason}</span><em className={item.carry ? "carry" : "stop"}>{item.carry ? "↗ 다음 날 TODO로 보냄" : "✓ 이번에는 그만하기"}</em></div>
               </article>)}</div>
             </div>}
-            <blockquote><span>“</span>{selected.note}<small>— 네 목표 메이트가</small></blockquote>
+            <blockquote><span>“</span>{humanizeCountPhrases(selected.note || reflection?.note)}<small>— 네 목표 메이트가</small></blockquote>
           </> : <div className="no-record"><span>☾</span><h2>아직 기록이 없어요</h2><p>오늘을 돌아보면 첫 카드가 생겨요.</p></div>}
         </article>
       </div>
@@ -470,14 +700,23 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
-        <div className="modal-head"><div><p>나의 리듬에 맞게</p><h2 id="settings-title">설정</h2></div><button type="button" onClick={onClose} aria-label="설정 닫기">×</button></div>
+        <div className="settings-scroll">
+        <div className="modal-head"><div><p>나의 리듬에 맞게</p><h2 id="settings-title">설정</h2></div><button className="close-settings" type="button" onPointerDown={(event) => { event.stopPropagation(); onClose(); }} onClick={onClose} aria-label="설정 닫기"><span aria-hidden="true">×</span></button></div>
         <div className="setting-row"><div><strong>하루 시작</strong><span>오늘의 목표를 물어볼게.</span></div><SoftTimePicker kind="morning" value={settings.morning} maxValue={settings.evening} onChange={(morning) => onChange({ ...settings, morning })} /></div>
         <div className="setting-row"><div><strong>하루 회고</strong><span>해낸 일을 같이 돌아볼게.</span></div><SoftTimePicker kind="evening" value={settings.evening} minValue={settings.morning} onChange={(evening) => onChange({ ...settings, evening })} /></div>
         <div className="setting-block"><strong>응원 빈도</strong><div className="setting-options">{(["거의 없음", "가끔", "자주"] as Settings["cheer"][]).map((option) => <button className={settings.cheer === option ? "selected" : ""} type="button" key={option} onClick={() => onChange({ ...settings, cheer: option })}>{option}</button>)}</div></div>
-        <div className="setting-block"><strong>목표 메이트 색상</strong><div className="theme-options compact">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={settings.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => onChange({ ...settings, theme })}><i className={`theme-swatch ${theme}`} />{{ coral: "코랄", sage: "세이지", lavender: "라벤더" }[theme]}</button>)}</div></div>
+        <div className="setting-block mate-picker-block">
+          <strong>나의 목표 메이트</strong><span>오늘을 함께할 동물을 골라보세요.</span>
+          <div className="mate-options">{MATE_OPTIONS.map((option) => <button className={settings.animal === option.value ? "selected" : ""} type="button" key={option.value} aria-pressed={settings.animal === option.value} onClick={() => onChange({ ...settings, animal: option.value })}><span className="mate-option-art" aria-hidden="true" style={{ backgroundImage: `url(${option.asset})` }} /><b>{option.label}</b>{settings.animal === option.value && <i>선택됨</i>}</button>)}</div>
+        </div>
         <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
         <button className="restart-guide" type="button" onClick={onRestartGuide}>✦ &nbsp;첫 시작 가이드 다시 보기</button>
         <button className="save-settings" type="button" onClick={onClose}>이대로 함께하기</button>
+        <footer className="app-info" aria-label="앱 정보">
+          <div><strong>오늘도</strong><span>데스크톱 목표 메이트</span></div>
+          <div><small>버전 {APP_VERSION}</small><span>데이터는 이 Mac에 저장돼요.</span></div>
+        </footer>
+        </div>
       </section>
     </div>
   );
@@ -489,6 +728,7 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
   const [draft, setDraft] = useState(settings);
   const [firstGoal, setFirstGoal] = useState("");
   const totalSteps = 6;
+  const selectedMate = MATE_OPTIONS.find((option) => option.value === draft.animal) || MATE_OPTIONS[0];
 
   const next = () => setStep((current) => Math.min(totalSteps - 1, current + 1));
   const back = () => setStep((current) => Math.max(0, current - 1));
@@ -518,8 +758,10 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
           </div>}
 
           {step === 2 && <div className="guide-step meet-step">
-            <div className="guide-mate" aria-hidden="true"><i className="guide-ear left" /><i className="guide-ear right" /><span className="guide-face"><b className="left" /><b className="right" /><em /></span><span className="guide-paw left" /><span className="guide-paw right" /></div>
-            <div className="guide-speech">“안녕! 앞으로 네가<br />해낸 일들을 내가 기억할게.”</div>
+            <div className="guide-mate-showcase">
+              <span className="guide-mate-art" aria-hidden="true" style={{ backgroundImage: `url(${selectedMate.asset})` }} />
+              <div className="guide-speech"><strong>“반가워!”</strong><span>서두르지 않아도 괜찮아요.<br />오늘의 작은 걸음을 곁에서 기억할게요.</span></div>
+            </div>
             <span className="guide-kicker">네 목표 메이트</span>
             <h1 id="onboarding-title">독촉하지 않고,<br />조용히 같이 있을게요.</h1>
             <p>목표를 해내면 함께 기뻐하고,<br />힘든 날에는 천천히 해도 괜찮다고 말해줄게요.</p>
@@ -531,7 +773,7 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
             <p>해낸 일은 한 번 더 기뻐하고, 어려웠던 일은 내일로 가져갈지 편하게 골라요.</p>
             <div className="guide-review-demo" aria-label="오늘 돌아보기 카드 사용 방법">
               <article className="guide-done-card"><small>오늘 해낸 일</small><span>✓</span><strong>작은 성취도 카드로 확인</strong><p>어느 방향으로든 넘겨요</p></article>
-              <article className="guide-difficult-card"><small>오늘 하기 어려웠던 일</small><strong>내 마음에 맞는 방향으로</strong><div><span>← 그만하기</span><i>드래그</i><span>내일 다시 하기 →</span></div></article>
+              <article className="guide-difficult-card"><small>오늘 하기 어려웠던 일</small><strong>내 마음에 맞는 방향으로</strong><div><span>← 그만하기</span><i>드래그</i><span>내일 TODO에 넣기 →</span></div></article>
             </div>
             <div className="guide-review-tip"><span>☾</span><p><strong>언제 사용하면 좋나요?</strong> 하루를 마칠 때 1분만 투자해도, 해낸 일과 내려놓을 일을 분명하게 구분할 수 있어요.</p></div>
           </div>}
@@ -549,8 +791,8 @@ function OnboardingGuide({ settings, onFinish, onSkip }: { settings: Settings; o
           {step === 5 && <div className="guide-step ready-step">
             <span className="guide-kicker">이제 준비 끝</span>
             <h1 id="onboarding-title">나와 함께할 메이트와<br /><em>첫 목표 하나</em>를 골라봐요.</h1>
-            <div className="theme-options guide-themes">{(["coral", "sage", "lavender"] as Settings["theme"][]).map((theme) => <button className={draft.theme === theme ? "selected" : ""} type="button" key={theme} onClick={() => setDraft({ ...draft, theme })}><span className={`mini-guide-mate ${theme}`}><i /><i /></span><strong>{{ coral: "따뜻한 코랄", sage: "차분한 세이지", lavender: "포근한 라벤더" }[theme]}</strong></button>)}</div>
-            <label className="first-goal-field"><span>오늘 꼭 하고 싶은 한 가지</span><input value={firstGoal} maxLength={60} onChange={(event) => setFirstGoal(event.target.value)} placeholder="예: 산책 20분 하기" /></label>
+            <div className="guide-mate-options" aria-label="목표 메이트 선택">{MATE_OPTIONS.map((option) => <button className={draft.animal === option.value ? "selected" : ""} type="button" key={option.value} aria-pressed={draft.animal === option.value} onClick={() => setDraft({ ...draft, animal: option.value })}><span className="guide-mate-option-art" aria-hidden="true" style={{ backgroundImage: `url(${option.asset})` }} /><strong>{option.label}</strong><small>{option.description}</small>{draft.animal === option.value && <i aria-hidden="true">✓</i>}</button>)}</div>
+            <label className="first-goal-field"><span>오늘 꼭 해내고 싶은 한 가지</span><input value={firstGoal} maxLength={60} onChange={(event) => setFirstGoal(event.target.value)} placeholder="예: 산책 20분 하기" /></label>
             <p className="optional-note">첫 목표는 비워두고 나중에 적어도 괜찮아요.</p>
           </div>}
         </div>
