@@ -23,6 +23,7 @@ const MATE_ASSETS = {
   bear: "assets/mate-bear-sign-3d.png",
 };
 const MATE_LABELS = { cat: "고양이", dog: "강아지", rabbit: "토끼", bear: "곰" };
+const MATE_SCALES = { small: 0.8, medium: 1, large: 1.2 };
 
 const hideBubble = () => {
   bubble.classList.add("is-hidden");
@@ -107,10 +108,13 @@ window.oneuldoMate.onMessage((nextMessage) => {
   if (nextMessage.includes("완료") || nextMessage.includes("해냈")) celebrate();
 });
 
-window.oneuldoMate.onStatus(({ completed, total, theme = "coral", cheer = "가끔", animal = "cat" }) => {
+window.oneuldoMate.onStatus(({ completed, total, theme = "coral", cheer = "가끔", animal = "cat", characterSize = "medium" }) => {
   const safeAnimal = MATE_ASSETS[animal] ? animal : "cat";
+  const safeScale = MATE_SCALES[characterSize] || MATE_SCALES.medium;
   if (!characterImage.src.endsWith(MATE_ASSETS[safeAnimal])) characterImage.src = MATE_ASSETS[safeAnimal];
   document.body.dataset.animal = safeAnimal;
+  document.body.dataset.size = MATE_SCALES[characterSize] ? characterSize : "medium";
+  document.documentElement.style.setProperty("--mate-scale", String(safeScale));
   statusText.textContent = `${completed}/${total}`;
   character.setAttribute("aria-label", `${MATE_LABELS[safeAnimal]} 목표 메이트. 오늘 목표 ${completed}/${total}. 드래그해서 옮기거나 클릭해서 대화하기`);
   const progress = total ? completed / total : 0;
@@ -121,6 +125,7 @@ window.oneuldoMate.onStatus(({ completed, total, theme = "coral", cheer = "가�
   document.body.classList.add(`theme-${theme}`);
   if (completed > lastCompleted) celebrate();
   lastCompleted = completed;
+  window.oneuldoMate.resize(document.body.classList.contains("is-speaking"));
   resetPeriodicSpeech(cheer);
 });
 

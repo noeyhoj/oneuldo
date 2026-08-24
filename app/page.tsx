@@ -35,6 +35,7 @@ type Settings = {
   evening: string;
   cheer: "거의 없음" | "가끔" | "자주";
   character: boolean;
+  characterSize: "small" | "medium" | "large";
   theme: "coral" | "sage" | "lavender";
   animal: "cat" | "dog" | "rabbit" | "bear";
 };
@@ -133,7 +134,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.20.1";
+const APP_VERSION = "1.21.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -153,7 +154,7 @@ const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURICompone
 [스크린샷 또는 참고 내용]
 `)}`;
 
-const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };
+const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, characterSize: "medium", theme: "coral", animal: "cat" };
 
 const timeToMinutes = (value: string) => {
   const [hour = "0", minute = "0"] = value.split(":");
@@ -320,8 +321,13 @@ export default function Home() {
 
   useEffect(() => {
     const handleMenuToggle = (event: Event) => toggleGoal((event as CustomEvent<string>).detail);
+    const handleCharacterVisibility = (event: Event) => setSettings((current) => ({ ...current, character: Boolean((event as CustomEvent<boolean>).detail) }));
     window.addEventListener("oneuldo:toggle-goal", handleMenuToggle);
-    return () => window.removeEventListener("oneuldo:toggle-goal", handleMenuToggle);
+    window.addEventListener("oneuldo:set-character-visibility", handleCharacterVisibility);
+    return () => {
+      window.removeEventListener("oneuldo:toggle-goal", handleMenuToggle);
+      window.removeEventListener("oneuldo:set-character-visibility", handleCharacterVisibility);
+    };
   });
 
   const updateGoal = (id: string, patch: Partial<Goal>) => {
@@ -733,7 +739,19 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
           <strong>나의 목표 메이트</strong><span>오늘을 함께할 동물을 골라보세요.</span>
           <div className="mate-options">{MATE_OPTIONS.map((option) => <button className={settings.animal === option.value ? "selected" : ""} type="button" key={option.value} aria-pressed={settings.animal === option.value} onClick={() => onChange({ ...settings, animal: option.value })}><span className="mate-option-art" aria-hidden="true" style={{ backgroundImage: `url(${option.asset})` }} /><b>{option.label}</b>{settings.animal === option.value && <i>선택됨</i>}</button>)}</div>
         </div>
-        <div className="toggle-row"><div><strong>목표 메이트 표시</strong><span>데스크톱 한쪽에서 기다릴게.</span></div><input aria-label="목표 메이트 표시" type="checkbox" checked={settings.character} onChange={(event) => onChange({ ...settings, character: event.target.checked })} /><i /></div>
+        <div className="setting-block companion-display-block">
+          <strong>데스크톱 캐릭터</strong><span>화면에서 보이는 크기와 표시 여부를 정해보세요.</span>
+          <div className="companion-visibility" aria-label="데스크톱 캐릭터 표시 설정">
+            <button className={settings.character ? "selected" : ""} type="button" aria-pressed={settings.character} onClick={() => onChange({ ...settings, character: true })}><i aria-hidden="true">●</i> 표시하기</button>
+            <button className={!settings.character ? "selected hidden" : ""} type="button" aria-pressed={!settings.character} onClick={() => onChange({ ...settings, character: false })}><i aria-hidden="true">○</i> 숨기기</button>
+          </div>
+          <div className={`companion-size-control ${!settings.character ? "is-disabled" : ""}`}>
+            <div><b>캐릭터 크기</b><small>{settings.character ? "바꾸면 화면의 캐릭터에 바로 반영돼요." : "캐릭터를 표시하면 크기를 바꿀 수 있어요."}</small></div>
+            <div className="companion-size-options" aria-label="캐릭터 크기">
+              {([{"value":"small","label":"작게"},{"value":"medium","label":"보통"},{"value":"large","label":"크게"}] as { value: Settings["characterSize"]; label: string }[]).map((option) => <button className={settings.characterSize === option.value ? "selected" : ""} type="button" key={option.value} disabled={!settings.character} aria-pressed={settings.characterSize === option.value} onClick={() => onChange({ ...settings, characterSize: option.value })}><i className={`size-dot ${option.value}`} aria-hidden="true" />{option.label}</button>)}
+            </div>
+          </div>
+        </div>
         <button className="restart-guide" type="button" onClick={onRestartGuide}>✦ &nbsp;첫 시작 가이드 다시 보기</button>
         <a className="bug-report-link" href={BUG_REPORT_MAILTO} target="_blank" rel="noreferrer">
           <span className="bug-report-icon" aria-hidden="true">✉</span>

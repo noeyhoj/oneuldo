@@ -4,7 +4,7 @@ const fs = require("fs");
 const { execFile } = require("child_process");
 const { createTrayTemplate } = require("./tray-menu.cjs");
 
-const DEFAULT_SETTINGS = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };
+const DEFAULT_SETTINGS = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, characterSize: "medium", theme: "coral", animal: "cat" };
 const GENTLE_MESSAGES = [
   "오늘의 속도도 충분히 너다워 🌿",
   "작은 한 칸도 분명한 전진이야.",
@@ -22,8 +22,10 @@ const GENTLE_MESSAGES = [
   "오늘의 너에게도 다정한 말을 건네줘.",
   "잘 보이지 않는 노력도 분명 쌓이고 있어.",
 ];
-const MATE_COMPACT_SIZE = { width: 176, height: 176 };
-const MATE_SPEAKING_SIZE = { width: 244, height: 244 };
+const MATE_COMPACT_SIZE = { width: 200, height: 200 };
+const MATE_SPEAKING_SIZE = { width: 268, height: 268 };
+const MATE_SIZE_SCALES = { small: 0.8, medium: 1, large: 1.2 };
+const MATE_CHARACTER_CENTER_INSET = 100;
 
 let mainWindow;
 let mateWindow;
@@ -35,6 +37,7 @@ let quitting = false;
 let pollTimer;
 let reminderTimer;
 let mateDragState;
+let mateScale = MATE_SIZE_SCALES.medium;
 let lastCompleted = 0;
 let lastGentleMessage = -1;
 let lastMateMessage = "";
@@ -91,12 +94,29 @@ function createTrayIcon() {
   return retinaIcon;
 }
 
-function showMain(mode = "today") {
-  if (!mainWindow) return;
+function presentMainOnCurrentWorkspace() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const workspaceOptions = { visibleOnFullScreen: true, skipTransformProcessType: true };
+  if (process.platform === "darwin") mainWindow.setVisibleOnAllWorkspaces(true, workspaceOptions);
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
+  mainWindow.moveTop();
   app.focus({ steal: true });
   mainWindow.focus();
+  if (process.platform === "darwin") {
+    // Temporarily joining every Space presents the existing window on the
+    // Space the user is currently viewing. Returning to normal immediately
+    // afterwards anchors it there instead of switching to its previous Space.
+    setTimeout(() => {
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      mainWindow.setVisibleOnAllWorkspaces(false, workspaceOptions);
+    }, 180);
+  }
+}
+
+function showMain(mode = "today") {
+  if (!mainWindow) return;
+  presentMainOnCurrentWorkspace();
   const action = {
     today: `document.querySelector('.brand')?.click()`,
     review: `document.querySelector('.review-button')?.click()`,
@@ -168,14 +188,34 @@ function endMateDrag() {
   mateDragState = undefined;
 }
 
+function getMateScale() {
+  return MATE_SIZE_SCALES[todayState.settings?.characterSize] || MATE_SIZE_SCALES.medium;
+}
+
+function scaledMateSize(base) {
+  const scale = getMateScale();
+  return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
+}
+
 function resizeMateWindow(expanded) {
   if (!mateWindow || mateWindow.isDestroyed()) return;
-  const next = expanded ? MATE_SPEAKING_SIZE : MATE_COMPACT_SIZE;
+  const nextScale = getMateScale();
+  const next = scaledMateSize(expanded ? MATE_SPEAKING_SIZE : MATE_COMPACT_SIZE);
   const current = mateWindow.getBounds();
-  if (current.width === next.width && current.height === next.height) return;
+  if (current.width === next.width && current.height === next.height && mateScale === nextScale) return;
+  const characterCenter = {
+    x: current.x + current.width - MATE_CHARACTER_CENTER_INSET * mateScale,
+    y: current.y + current.height - MATE_CHARACTER_CENTER_INSET * mateScale,
+  };
+  const { workArea } = screen.getDisplayNearestPoint(characterCenter);
+  const preferredX = characterCenter.x - (next.width - MATE_CHARACTER_CENTER_INSET * nextScale);
+  const preferredY = characterCenter.y - (next.height - MATE_CHARACTER_CENTER_INSET * nextScale);
+  const nextX = Math.min(Math.max(preferredX, workArea.x), workArea.x + workArea.width - next.width);
+  const nextY = Math.min(Math.max(preferredY, workArea.y), workArea.y + workArea.height - next.height);
+  mateScale = nextScale;
   mateWindow.setBounds({
-    x: current.x + current.width - next.width,
-    y: current.y + current.height - next.height,
+    x: Math.round(nextX),
+    y: Math.round(nextY),
     width: next.width,
     height: next.height,
   }, true);
@@ -231,9 +271,11 @@ function createMainWindow() {
 
 function createMateWindow() {
   const prefs = readPrefs();
+  const initialMateSize = scaledMateSize(MATE_COMPACT_SIZE);
+  mateScale = getMateScale();
   mateWindow = new BrowserWindow({
-    width: MATE_COMPACT_SIZE.width,
-    height: MATE_COMPACT_SIZE.height,
+    width: initialMateSize.width,
+    height: initialMateSize.height,
     show: false,
     frame: false,
     transparent: true,
@@ -327,6 +369,7 @@ function sendMateStatus() {
     theme: todayState.settings?.theme || "coral",
     cheer: todayState.settings?.cheer || DEFAULT_SETTINGS.cheer,
     animal: todayState.settings?.animal || DEFAULT_SETTINGS.animal,
+    characterSize: todayState.settings?.characterSize || DEFAULT_SETTINGS.characterSize,
   });
 }
 
@@ -349,7 +392,16 @@ async function syncFromWeb() {
     }
     lastCompleted = state.completed;
     sendMateStatus();
-    if (todayState.settings.character === false && mateWindow?.isVisible()) mateWindow.hide();
+    const characterVisible = todayState.settings.character !== false;
+    const prefs = readPrefs();
+    if (prefs.mateVisible !== characterVisible) {
+      prefs.mateVisible = characterVisible;
+      savePrefs(prefs);
+    }
+    if (characterVisible && mateWindow && !mateWindow.isVisible()) {
+      positionMate();
+      mateWindow.showInactive();
+    } else if (!characterVisible && mateWindow?.isVisible()) mateWindow.hide();
     writeMenuBarState();
     rebuildTrayMenu();
   } catch { /* The hosted view may still be loading. */ }
@@ -390,6 +442,8 @@ function toggleMate(visible) {
   const prefs = readPrefs();
   prefs.mateVisible = visible;
   savePrefs(prefs);
+  todayState.settings = { ...todayState.settings, character: visible };
+  mainWindow?.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent('oneuldo:set-character-visibility', { detail: ${JSON.stringify(visible)} }))`).catch(() => {});
   if (visible) { positionMate(); mateWindow.showInactive(); } else mateWindow.hide();
   rebuildTrayMenu();
 }
