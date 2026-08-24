@@ -40,11 +40,6 @@ type Settings = {
 };
 
 const REASONS = ["시간이 부족했어요", "우선순위가 바뀌었어요", "생각보다 어려웠어요", "컨디션이 좋지 않았어요"];
-const DEFAULT_GOALS: Goal[] = [
-  { id: "welcome-1", title: "기획서 핵심 흐름 정리하기", done: true },
-  { id: "welcome-2", title: "프로젝트 첫 화면 만들기", done: false },
-  { id: "welcome-3", title: "30분 산책하기", done: false },
-];
 
 const dateKey = (offset = 0) => {
   const date = new Date();
@@ -95,11 +90,25 @@ const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfin
   return { headline: `오늘 ${koreanCount(done.length)} 가지나 앞으로 나아갔어.`, note: "크고 작은 일을 해낸 순간들이 모여 오늘의 발자국이 됐어. 네가 움직인 만큼을 다정하게 기억할게." };
 };
 
-const SAMPLE_RECORDS: DailyRecord[] = [
-  { date: dateKey(-3), done: ["프로젝트 회의", "알고리즘 문제 1개"], unfinished: [], note: "계획보다 적어도, 꼭 해내고 싶었던 건 다 해냈어." },
-  { date: dateKey(-2), done: ["포트폴리오 문구 다듬기", "산책 20분"], unfinished: [{ title: "책 30쪽 읽기", reason: "컨디션이 좋지 않았어요", note: "퇴근 후에 너무 피곤했다.", carry: true }], note: "피곤한 날에도 나를 위한 산책은 챙겼어." },
-  { date: dateKey(-1), done: ["PR 작성하기", "운동 30분", "엄마에게 전화하기"], unfinished: [], note: "오늘 세 가지나 앞으로 나아갔어." },
-];
+const LEGACY_SAMPLE_GOAL_IDS = new Set(["welcome-1", "welcome-2", "welcome-3"]);
+const removeLegacySampleGoals = (goals: Goal[]) => goals.filter((goal) => !LEGACY_SAMPLE_GOAL_IDS.has(goal.id));
+const isLegacySampleRecord = (record: DailyRecord) => {
+  const done = record.done.join("\u0000");
+  if (record.note === "계획보다 적어도, 꼭 해내고 싶었던 건 다 해냈어.") return done === "프로젝트 회의\u0000알고리즘 문제 1개" && record.unfinished.length === 0;
+  if (record.note === "피곤한 날에도 나를 위한 산책은 챙겼어.") {
+    const [unfinished] = record.unfinished;
+    return done === "포트폴리오 문구 다듬기\u0000산책 20분"
+      && record.unfinished.length === 1
+      && unfinished.title === "책 30쪽 읽기"
+      && unfinished.reason === "컨디션이 좋지 않았어요"
+      && unfinished.note === "퇴근 후에 너무 피곤했다."
+      && unfinished.carry === true;
+  }
+  return record.note === "오늘 세 가지나 앞으로 나아갔어."
+    && done === "PR 작성하기\u0000운동 30분\u0000엄마에게 전화하기"
+    && record.unfinished.length === 0;
+};
+const removeLegacySampleRecords = (records: DailyRecord[]) => records.filter((record) => !isLegacySampleRecord(record));
 
 const MATE_OPTIONS = [
   { value: "cat", label: "고양이", description: "조용히 곁을 지켜줄게요", asset: "./mates/mate-cat-sign-3d.png" },
@@ -124,7 +133,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     doneGoal && `“${doneGoal.title}”까지 해낸 오늘의 너, 정말 멋져.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.18.0";
+const APP_VERSION = "1.19.0";
 const BUG_REPORT_URL = "https://github.com/noeyhoj/oneuldo/issues/new?template=bug_report.yml";
 
 const initialSettings: Settings = { morning: "09:00", evening: "18:00", cheer: "가끔", character: true, theme: "coral", animal: "cat" };
@@ -150,14 +159,14 @@ const keepTimesInOrder = (settings: Settings): Settings => {
 
 export default function Home() {
   const [view, setView] = useState<"today" | "review" | "records">("today");
-  const [goals, setGoals] = useState<Goal[]>(DEFAULT_GOALS);
-  const [records, setRecords] = useState<DailyRecord[]>(SAMPLE_RECORDS);
+  const [goals, setGoals] = useState<Goal[]>([]);
+  const [records, setRecords] = useState<DailyRecord[]>([]);
   const [newGoal, setNewGoal] = useState("");
   const [adding, setAdding] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(initialSettings);
   const [message, setMessage] = useState("오늘의 속도도 충분히 너다워 🌿");
-  const [selectedDate, setSelectedDate] = useState(dateKey(-1));
+  const [selectedDate, setSelectedDate] = useState(dateKey());
   const [activeDate, setActiveDate] = useState(dateKey());
   const [hydrated, setHydrated] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -176,27 +185,24 @@ export default function Home() {
     setDueCarryovers(due);
     if (storedGoals) {
       const parsedGoals = JSON.parse(storedGoals) as Goal[];
+      const cleanedGoals = removeLegacySampleGoals(Array.isArray(parsedGoals) ? parsedGoals : []);
+      if (cleanedGoals.length !== parsedGoals.length) localStorage.setItem("oneuldo-goals", JSON.stringify(cleanedGoals));
       if (storedGoalsDate && storedGoalsDate !== today) setGoals([]);
-      else setGoals(parsedGoals);
+      else setGoals(cleanedGoals);
     } else if (due.length) setGoals([]);
-    if (storedRecords) setRecords(JSON.parse(storedRecords));
+    if (storedRecords) {
+      const parsedRecords = JSON.parse(storedRecords) as DailyRecord[];
+      const cleanedRecords = removeLegacySampleRecords(Array.isArray(parsedRecords) ? parsedRecords : []);
+      setRecords(cleanedRecords);
+      if (cleanedRecords.length !== parsedRecords.length) localStorage.setItem("oneuldo-records", JSON.stringify(cleanedRecords));
+    }
     if (storedSettings) setSettings(keepTimesInOrder({ ...initialSettings, ...JSON.parse(storedSettings) }));
     const onboarded = localStorage.getItem("oneuldo-onboarded");
-    const hasExistingContent = [storedGoals, storedRecords].some((value) => {
-      if (!value) return false;
-      try {
-        const parsed = JSON.parse(value);
-        return Array.isArray(parsed) && parsed.length > 0;
-      }
-      catch { return false; }
-    });
-    if (!onboarded && !hasExistingContent) {
+    if (!onboarded) {
       setGoals([]);
       setRecords([]);
       setOnboardingFresh(true);
       setOnboardingOpen(true);
-    } else if (!onboarded) {
-      localStorage.setItem("oneuldo-onboarded", "1");
     }
     localStorage.setItem("oneuldo-goals-date", today);
     setActiveDate(today);
@@ -369,7 +375,7 @@ export default function Home() {
   };
 
   return (
-    <main className={`app-shell theme-${settings.theme}`}>
+    <main className={`app-shell theme-${settings.theme} ${!hydrated ? "is-hydrating" : ""} ${onboardingOpen && onboardingFresh ? "is-first-onboarding" : ""}`}>
       <header className="topbar">
         <button className="brand" type="button" onClick={() => setView("today")} aria-label="오늘도 - 네가 해낸 하루를 기억할게, 홈">
           <span className="brand-image" aria-hidden="true" />
