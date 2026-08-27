@@ -115,7 +115,7 @@ window.oneuldoMate.onStatus(({ completed, total, theme = "coral", cheer = "가�
   document.body.dataset.animal = safeAnimal;
   document.body.dataset.size = MATE_SCALES[characterSize] ? characterSize : "medium";
   document.documentElement.style.setProperty("--mate-scale", String(safeScale));
-  statusText.textContent = `${completed}/${total}`;
+  statusText.textContent = `${completed} / ${total}`;
   character.setAttribute("aria-label", `${MATE_LABELS[safeAnimal]} 목표 메이트. 오늘 목표 ${completed}/${total}. 드래그해서 옮기거나 클릭해서 대화하기`);
   const progress = total ? completed / total : 0;
   const progressColor = progress >= 1 ? "#4f9a68" : progress >= .5 ? "#e28a38" : progress > 0 ? "#ef7654" : "#8f735e";

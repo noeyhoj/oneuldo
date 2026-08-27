@@ -70,25 +70,62 @@ const koreanOrdinal = (value: number) => KOREAN_ORDINALS[value] || `${value}번�
 const humanizeCountPhrases = (text = "") => text.replace(/([1-5])가지/g, (_, value: string) => `${koreanCount(Number(value))} 가지`);
 
 const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfinished"]) => {
+  const cleanTitle = (title: string) => {
+    const compact = title.replace(/\s+/g, " ").trim();
+    return compact.length > 24 ? `${compact.slice(0, 23)}…` : compact;
+  };
+  const summarize = (items: string[]) => {
+    const visible = items.slice(0, 2).map((item) => `“${cleanTitle(item)}”`).join(", ");
+    return items.length > 2 ? `${visible} 외 ${items.length - 2}개` : visible;
+  };
+  const source = [...done, ...unfinished.flatMap((item) => [item.title, item.reason, item.carry ? "carry" : "stop"])].join("|");
+  const seed = Array.from(source).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 1), 0);
+  const choose = <T,>(items: T[], offset = 0) => items[(seed + offset) % items.length];
   const joined = done.join(" ");
   const has = (words: string[]) => words.some((word) => joined.includes(word));
   const carried = unfinished.filter((item) => item.carry);
-  const reasons = unfinished.map((item) => item.reason);
+  const firstDone = done.length ? cleanTitle(done[seed % done.length]) : "";
+  const firstOpen = unfinished.length ? unfinished[(seed + done.length) % unfinished.length] : undefined;
+  const reasonNote = firstOpen?.reason.includes("시간")
+    ? "오늘은 시간이 모자랐던 일이었어."
+    : firstOpen?.reason.includes("우선순위")
+      ? "더 중요한 일을 먼저 고른 결과였어."
+      : firstOpen?.reason.includes("어려웠")
+        ? "생각보다 큰 에너지가 필요한 일이었어."
+        : firstOpen?.reason.includes("컨디션")
+          ? "몸과 마음의 여유가 부족했던 일이었어."
+          : "마무리하지 못한 이유까지 차분히 살펴봤어.";
+  const carryNote = carried.length
+    ? `내일 다시 만나기로 고른 일정은 ${summarize(carried.map((item) => item.title))}야.`
+    : unfinished.length
+      ? "남은 일은 억지로 끌고 가지 않고 오늘의 선택으로 잘 내려놓았어."
+      : "";
   const allDone = done.length > 0 && unfinished.length === 0;
 
   if (!done.length) {
-    if (reasons.some((reason) => reason.includes("컨디션"))) return { headline: "오늘은 나를 쉬게 해준 날이야.", note: "몸과 마음이 지친 날에는 쉬어가는 것도 꼭 필요한 일이야. 오늘을 돌아봐준 것만으로 충분해." };
-    if (carried.length) return { headline: "내일의 나에게 길을 잘 남겨뒀어.", note: "오늘 다 하지 못했어도 괜찮아. 다시 이어갈 일을 스스로 골라둔 것도 분명한 한 걸음이야." };
-    return { headline: "오늘을 돌아본 것부터 잘했어.", note: "완료 표시가 없는 날에도 애쓴 시간은 사라지지 않아. 여기까지 와서 하루를 살펴본 마음을 기억할게." };
+    if (!firstOpen) return { headline: "오늘을 돌아본 것부터 잘했어.", note: "완료 표시가 없는 날에도 애쓴 시간은 사라지지 않아. 여기까지 와서 하루를 살펴본 마음을 기억할게." };
+    return {
+      headline: choose([`“${cleanTitle(firstOpen.title)}”, 오늘은 여기까지였어.`, "끝내지 못한 일도 솔직하게 바라봤어.", "오늘의 여유를 알아차린 것도 좋은 기록이야."]),
+      note: `아직 남은 일정은 ${summarize(unfinished.map((item) => item.title))}야. ${reasonNote} ${carryNote}`.trim(),
+    };
   }
-  if (allDone) return { headline: "마음에 담은 일을 모두 해냈어.", note: "오늘의 약속을 하나씩 지켜낸 리듬이 참 멋져. 이 뿌듯함을 오래 기억해둘게." };
-  if (reasons.some((reason) => reason.includes("컨디션")) && has(["산책", "운동", "요가", "달리기", "스트레칭"])) return { headline: "피곤한 날에도 나를 잘 돌봤어.", note: "컨디션이 좋지 않은 날에도 나를 위한 움직임은 챙겼어. 무리하지 않으면서도 마음을 돌본 오늘이 참 다정해." };
-  if (has(["산책", "운동", "요가", "달리기", "스트레칭"])) return { headline: "오늘, 나를 잘 돌봤어.", note: "바쁜 하루 속에서도 몸과 마음을 위한 시간을 만들었어. 나를 챙긴 선택도 소중한 성취야." };
-  if (has(["공부", "책", "읽기", "강의", "알고리즘", "연습"])) return { headline: "오늘의 배움을 차곡차곡 쌓았어.", note: "지금은 작아 보여도 오늘 익힌 한 가지가 내일의 나를 든든하게 만들어줄 거야." };
-  if (has(["기획", "프로젝트", "포트폴리오", "보고서", "회의", "문구", "화면", "PR"])) return { headline: "복잡한 일을 한 걸음 앞으로 옮겼어.", note: "막연했던 일을 눈에 보이는 모양으로 바꿔냈어. 오늘 만든 한 조각이 다음 걸음을 더 가볍게 해줄 거야." };
-  if (has(["전화", "연락", "가족", "친구", "만나"])) return { headline: "따뜻한 마음을 잘 건넸어.", note: "소중한 사람을 떠올리고 마음을 건넨 일도 오늘의 아름다운 성취야." };
-  if (carried.length) return { headline: `${koreanCount(done.length)} 가지나 해내고, 내일의 길도 골랐어.`, note: "해낸 일은 충분히 기뻐하고, 남은 일은 부담 대신 선택으로 남겼어. 오늘을 참 현명하게 정리했어." };
-  return { headline: `오늘 ${koreanCount(done.length)} 가지나 앞으로 나아갔어.`, note: "크고 작은 일을 해낸 순간들이 모여 오늘의 발자국이 됐어. 네가 움직인 만큼을 다정하게 기억할게." };
+  if (allDone) return {
+    headline: choose([`“${firstDone}”, 오늘 분명히 해냈어.`, `해낸 ${koreanCount(done.length)} 가지가 또렷하게 남았어.`, "마음에 담은 일을 모두 해냈어."]),
+    note: `오늘 해낸 일은 ${summarize(done)}야. ${choose(["하나씩 완료한 리듬이 참 든든해.", "스스로와 한 약속을 지킨 오늘을 오래 기억할게.", "작은 체크들이 모여 오늘의 분명한 발자국이 됐어."], 1)}`,
+  };
+  const categoryHeadline = has(["산책", "운동", "요가", "달리기", "스트레칭"])
+    ? "피곤한 날에도 나를 잘 돌봤어."
+    : has(["공부", "책", "읽기", "강의", "알고리즘", "연습"])
+      ? "오늘의 배움을 차곡차곡 쌓았어."
+      : has(["기획", "프로젝트", "포트폴리오", "보고서", "회의", "문구", "화면", "PR"])
+        ? "복잡한 일을 한 걸음 앞으로 옮겼어."
+        : has(["전화", "연락", "가족", "친구", "만나"])
+          ? "따뜻한 마음을 잘 건넸어."
+          : `“${firstDone}”, 오늘의 분명한 성취야.`;
+  return {
+    headline: choose([categoryHeadline, `오늘의 한 걸음은 “${firstDone}”에서 또렷해.`, "해낸 일과 남긴 일을 잘 구분한 하루야."]),
+    note: `오늘 해낸 일은 ${summarize(done)}야. 아직 남은 일정은 ${summarize(unfinished.map((item) => item.title))}야. ${reasonNote} ${carryNote}`.trim(),
+  };
 };
 
 const LEGACY_SAMPLE_GOAL_IDS = new Set(["welcome-1", "welcome-2", "welcome-3"]);
@@ -132,7 +169,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.22.0";
+const APP_VERSION = "1.23.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -490,7 +527,7 @@ function GoalMate({ message, animal, completed, total, onClick }: { message: str
       </button>
       <button className={`mate animal-${animal}`} type="button" onClick={onClick} aria-label={`${selectedMate.label} 목표 메이트와 대화하기`}>
         <span className="mate-art" aria-hidden="true" style={{ backgroundImage: `url(${selectedMate.asset})` }} />
-        <span className="mate-status" aria-hidden="true"><small>오늘</small><strong style={{ color: progressColor }}>{completed}/{total}</strong></span>
+        <span className="mate-status" aria-hidden="true"><strong style={{ color: progressColor }}>{completed} / {total}</strong></span>
       </button>
     </aside>
   );
@@ -628,13 +665,13 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
 
           {memoryStep && <article className="review-card memory-card">
             <div className="memory-card-kind"><span aria-hidden="true">✦</span><div><small>목표 밖에서 발견한 일</small><strong>한 가지만 기억해도 충분해요</strong></div></div>
-            <div className="memory-card-copy"><span aria-hidden="true">💭</span><h2>오늘 한 일 중에<br />한 가지만 더 떠올려볼까요?</h2><p>크거나 특별한 일일 필요 없어요.<br /><b>한 가지면 오늘을 기억하기에 충분해요.</b></p></div>
+            <div className="memory-card-copy"><span className="memory-one-badge">한 가지면 충분해요</span><h2>오늘 기억하고 싶은 일,<br />딱 하나만 남겨볼까요?</h2><p>크거나 특별하지 않아도 괜찮아요.<br />지나치기 아쉬운 작은 순간 하나면 충분해요.</p></div>
             <form className="memory-form" onSubmit={rememberDone}>
-              <input value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} placeholder="예: 밀린 설거지를 했다" aria-label="목표 외에 오늘 해낸 일 한 가지" />
-              <button type="submit" disabled={!rememberedInput.trim()}>기록하고 넘어가기</button>
+              <label htmlFor="remembered-one">오늘의 한 가지</label>
+              <div className="memory-input-row"><input id="remembered-one" value={rememberedInput} onChange={(event) => setRememberedInput(event.target.value)} maxLength={60} placeholder="예: 미뤄둔 설거지를 끝냈다" aria-label="목표 외에 오늘 해낸 일 한 가지" /><span>{rememberedInput.length}/60</span></div>
+              <button type="submit" disabled={!rememberedInput.trim()}><span>이 한 가지 기록하기</span><b>→</b></button>
             </form>
-            <p className="memory-one-note">딱 한 가지만 적으면 바로 다음으로 넘어가요.</p>
-            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>지금은 더 기억나는 일이 없어요<b>→</b></button>
+            <button className="finish-memory" type="button" onClick={() => setMemoryFinished(true)}>지금은 떠오르는 일이 없어요<b>→</b></button>
           </article>}
 
           {reviewComplete && <article className="review-card review-complete-card">

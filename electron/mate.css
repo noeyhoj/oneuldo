@@ -88,6 +88,10 @@ button { font: inherit; color: inherit; -webkit-app-region: no-drag; }
   transform-origin: right bottom;
   animation: bob 3.9s ease-in-out infinite;
 }
+.character:focus,
+.character:focus-visible,
+.bubble:focus,
+.bubble:focus-visible { outline: none; }
 .character.is-dragging { cursor: grabbing; animation-play-state: paused; }
 .character:active:not(.is-dragging) { transform: scale(.97) translateY(1px); }
 .character-image {
@@ -99,18 +103,18 @@ button { font: inherit; color: inherit; -webkit-app-region: no-drag; }
   height: auto;
   pointer-events: none;
   -webkit-user-drag: none;
-  filter: drop-shadow(0 8px 8px rgba(62, 46, 34, .18));
+  filter: none;
   transition: filter .2s ease;
 }
-.character:hover .character-image { filter: drop-shadow(0 10px 10px rgba(62, 46, 34, .22)) brightness(1.025); }
+.character:hover .character-image { filter: brightness(1.025); }
 
 .status {
   position: absolute;
   z-index: 9;
-  left: 31px;
-  top: 79px;
-  width: 119px;
-  height: 44px;
+  left: 22px;
+  top: 78px;
+  width: 136px;
+  height: 48px;
   border: 0;
   border-radius: 8px;
   padding: 1px 7px 2px;
@@ -121,19 +125,29 @@ button { font: inherit; color: inherit; -webkit-app-region: no-drag; }
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 6px;
   pointer-events: none;
   overflow: hidden;
   white-space: nowrap;
-  opacity: .92;
+  opacity: .96;
   mix-blend-mode: multiply;
-  text-shadow: 0 .7px 0 rgba(255,255,255,.22), 0 1.2px 1px rgba(72,38,20,.2);
+  text-shadow: none;
 }
-.status span { color:var(--progress-color); font-size:25px; font-weight: 920; line-height:1; letter-spacing:-.065em; transition:color .25s ease; font-variant-numeric:tabular-nums; }
-.status small { color:#d95f42; font-size:13px; font-weight: 900; line-height:1; letter-spacing:-.045em; }
-body[data-animal="dog"] .status { left:33px; top:88px; width:112px; height:41px; }
-body[data-animal="rabbit"] .status { left:18px; top:91px; width:134px; height:44px; }
-body[data-animal="bear"] .status { left:15px; top:85px; width:144px; height:45px; }
+.status span {
+  color: var(--progress-color);
+  font-family: "Arial Rounded MT Bold", "Pretendard", sans-serif;
+  font-size: 28px;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: .015em;
+  transform: rotate(-1deg);
+  transition: color .25s ease;
+  font-variant-numeric: tabular-nums;
+  -webkit-text-stroke: .55px currentColor;
+  paint-order: stroke fill;
+}
+body[data-animal="dog"] .status { top:80px; }
+body[data-animal="rabbit"] .status { top:82px; }
+body[data-animal="bear"] .status { top:80px; }
 .is-speaking .character { right:12px; bottom:12px; width:176px; height:176px; }
 .is-speaking .character-image { width:174px; }
 .celebrate .character-image { animation: squish .55s ease; }
