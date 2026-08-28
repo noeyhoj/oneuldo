@@ -70,48 +70,43 @@ const koreanOrdinal = (value: number) => KOREAN_ORDINALS[value] || `${value}번�
 const humanizeCountPhrases = (text = "") => text.replace(/([1-5])가지/g, (_, value: string) => `${koreanCount(Number(value))} 가지`);
 
 const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfinished"]) => {
-  const cleanTitle = (title: string) => {
-    const compact = title.replace(/\s+/g, " ").trim();
-    return compact.length > 24 ? `${compact.slice(0, 23)}…` : compact;
-  };
-  const summarize = (items: string[]) => {
-    const visible = items.slice(0, 2).map((item) => `“${cleanTitle(item)}”`).join(", ");
-    return items.length > 2 ? `${visible} 외 ${items.length - 2}개` : visible;
-  };
   const source = [...done, ...unfinished.flatMap((item) => [item.title, item.reason, item.carry ? "carry" : "stop"])].join("|");
   const seed = Array.from(source).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 1), 0);
   const choose = <T,>(items: T[], offset = 0) => items[(seed + offset) % items.length];
   const joined = done.join(" ");
   const has = (words: string[]) => words.some((word) => joined.includes(word));
   const carried = unfinished.filter((item) => item.carry);
-  const firstDone = done.length ? cleanTitle(done[seed % done.length]) : "";
   const firstOpen = unfinished.length ? unfinished[(seed + done.length) % unfinished.length] : undefined;
   const reasonNote = firstOpen?.reason.includes("시간")
-    ? "오늘은 시간이 모자랐던 일이었어."
+    ? "오늘은 시간이 조금 모자랐던 날이었어."
     : firstOpen?.reason.includes("우선순위")
-      ? "더 중요한 일을 먼저 고른 결과였어."
+      ? "더 중요한 일을 먼저 고른 하루였어."
       : firstOpen?.reason.includes("어려웠")
-        ? "생각보다 큰 에너지가 필요한 일이었어."
+        ? "생각보다 큰 에너지가 필요했던 날이었어."
         : firstOpen?.reason.includes("컨디션")
-          ? "몸과 마음의 여유가 부족했던 일이었어."
-          : "마무리하지 못한 이유까지 차분히 살펴봤어.";
-  const carryNote = carried.length
-    ? `내일 다시 만나기로 고른 일정은 ${summarize(carried.map((item) => item.title))}야.`
-    : unfinished.length
-      ? "남은 일은 억지로 끌고 가지 않고 오늘의 선택으로 잘 내려놓았어."
-      : "";
+          ? "몸과 마음에 조금 더 여유가 필요했던 날이었어."
+          : "오늘의 여유를 솔직하게 살펴본 하루였어.";
   const allDone = done.length > 0 && unfinished.length === 0;
+
+  const progressNote = () => {
+    const achievement = `${koreanCount(done.length)} 가지를 해냈고`;
+    if (carried.length === unfinished.length) return `${achievement}, 남은 일은 내일로 가볍게 건넸어. 오늘도 충분히 앞으로 갔어.`;
+    if (!carried.length) return `${achievement}, 남은 일은 오늘의 선택으로 잘 내려놓았어. 애쓴 만큼 충분해.`;
+    return `${achievement}, 이어갈 일만 내일로 잘 건넸어. 오늘을 현명하게 정리했어.`;
+  };
 
   if (!done.length) {
     if (!firstOpen) return { headline: "오늘을 돌아본 것부터 잘했어.", note: "완료 표시가 없는 날에도 애쓴 시간은 사라지지 않아. 여기까지 와서 하루를 살펴본 마음을 기억할게." };
     return {
-      headline: choose([`“${cleanTitle(firstOpen.title)}”, 오늘은 여기까지였어.`, "끝내지 못한 일도 솔직하게 바라봤어.", "오늘의 여유를 알아차린 것도 좋은 기록이야."]),
-      note: `아직 남은 일정은 ${summarize(unfinished.map((item) => item.title))}야. ${reasonNote} ${carryNote}`.trim(),
+      headline: choose(["오늘은 여기까지여도 괜찮아.", "끝내지 못한 마음도 잘 바라봤어.", "오늘의 여유를 알아차린 것도 좋은 기록이야."]),
+      note: carried.length
+        ? `${reasonNote} 이어갈 일은 내일의 나에게 천천히 건네도 괜찮아.`
+        : `${reasonNote} 남은 일까지 억지로 안고 가지 않아도 괜찮아.`,
     };
   }
   if (allDone) return {
-    headline: choose([`“${firstDone}”, 오늘 분명히 해냈어.`, `해낸 ${koreanCount(done.length)} 가지가 또렷하게 남았어.`, "마음에 담은 일을 모두 해냈어."]),
-    note: `오늘 해낸 일은 ${summarize(done)}야. ${choose(["하나씩 완료한 리듬이 참 든든해.", "스스로와 한 약속을 지킨 오늘을 오래 기억할게.", "작은 체크들이 모여 오늘의 분명한 발자국이 됐어."], 1)}`,
+    headline: choose(["오늘의 약속을 모두 지켰어.", `해낸 ${koreanCount(done.length)} 가지가 또렷하게 남았어.`, "마음에 담은 일을 모두 해냈어."]),
+    note: `${koreanCount(done.length)} 가지를 모두 해냈어. ${choose(["하나씩 완성한 리듬이 참 든든해.", "스스로와 한 약속을 지킨 오늘을 오래 기억할게.", "오늘 남긴 분명한 발자국을 오래 기억할게."], 1)}`,
   };
   const categoryHeadline = has(["산책", "운동", "요가", "달리기", "스트레칭"])
     ? "피곤한 날에도 나를 잘 돌봤어."
@@ -121,10 +116,10 @@ const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfin
         ? "복잡한 일을 한 걸음 앞으로 옮겼어."
         : has(["전화", "연락", "가족", "친구", "만나"])
           ? "따뜻한 마음을 잘 건넸어."
-          : `“${firstDone}”, 오늘의 분명한 성취야.`;
+          : "오늘도 분명히 한 걸음 나아갔어.";
   return {
-    headline: choose([categoryHeadline, `오늘의 한 걸음은 “${firstDone}”에서 또렷해.`, "해낸 일과 남긴 일을 잘 구분한 하루야."]),
-    note: `오늘 해낸 일은 ${summarize(done)}야. 아직 남은 일정은 ${summarize(unfinished.map((item) => item.title))}야. ${reasonNote} ${carryNote}`.trim(),
+    headline: choose([categoryHeadline, "오늘도 분명히 한 걸음 나아갔어.", "해낸 일과 남긴 일을 잘 구분한 하루야."]),
+    note: progressNote(),
   };
 };
 
@@ -169,7 +164,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.23.0";
+const APP_VERSION = "1.23.1";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -710,7 +705,7 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
 
         <article className="daily-card">
           {selected ? <>
-            <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>{humanizeCountPhrases(selected.headline || reflection?.headline)}</h2></div><div className="record-head-side">{selected.syncedUntilMidnight && selected.date === dateKey() && <small>자정까지 오늘 TODO와 동기화 중</small>}<span className="mini-mate">•ᴗ•</span></div></div>
+            <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>{humanizeCountPhrases(reflection?.headline || selected.headline)}</h2></div><div className="record-head-side">{selected.syncedUntilMidnight && selected.date === dateKey() && <small>자정까지 오늘 TODO와 동기화 중</small>}<span className="mini-mate">•ᴗ•</span></div></div>
             <div className="record-section"><p>✨ 오늘 해낸 일</p><ul>{selected.done.map((item) => <li className={selected.extraDone?.includes(item) ? "remembered-done" : ""} key={item}><span>✓</span><div><strong>{item}</strong>{selected.extraDone?.includes(item) && <small>목표 밖에서 기억난 일</small>}</div></li>)}</ul></div>
             {!!selected.unfinished.length && <div className="record-section unfinished">
               <p className="unfinished-heading"><span aria-hidden="true">↗</span>오늘 하기 어려웠던 일 <em>{selected.unfinished.length}</em></p>
@@ -720,7 +715,7 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
                 <div className="unfinished-meta"><span>{item.reason}</span><em className={item.carry ? "carry" : "stop"}>{item.carry ? "↗ 다음 날 TODO로 보냄" : "✓ 이번에는 그만하기"}</em></div>
               </article>)}</div>
             </div>}
-            <blockquote><span>“</span>{humanizeCountPhrases(selected.note || reflection?.note)}<small>— 네 목표 메이트가</small></blockquote>
+            <blockquote><span>“</span>{humanizeCountPhrases(reflection?.note || selected.note)}<small>— 네 목표 메이트가</small></blockquote>
           </> : <div className="no-record"><span>☾</span><h2>아직 기록이 없어요</h2><p>오늘을 돌아보면 첫 카드가 생겨요.</p></div>}
         </article>
       </div>

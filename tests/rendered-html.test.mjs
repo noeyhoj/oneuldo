@@ -172,7 +172,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /characterSize:\s*todayState\.settings\?\.characterSize/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.23\.0"/);
+  assert.match(packageJson, /"version": "1\.23\.1"/);
   assert.match(packageJson, /"identity": "-"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
@@ -206,8 +206,10 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /내일 TODO에 넣기/);
   assert.match(page, /buildCompanionReflection/);
   assert.match(page, /피곤한 날에도 나를 잘 돌봤어/);
-  assert.match(page, /summarize\(done\)/);
-  assert.match(page, /summarize\(unfinished\.map/);
+  assert.doesNotMatch(page, /summarize\(done\)/);
+  assert.doesNotMatch(page, /summarize\(unfinished\.map/);
+  assert.match(page, /남은 일은 내일로 가볍게 건넸어/);
+  assert.match(page, /남은 일은 오늘의 선택으로 잘 내려놓았어/);
   assert.match(page, /firstOpen\?\.reason/);
   assert.match(styles, /Next-day TODO handoff/);
   assert.match(page, /이번에는 그만하기/);
@@ -244,7 +246,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.23\.0"/);
+  assert.match(page, /APP_VERSION = "1\.23\.1"/);
   assert.match(page, /characterSize: "small" \| "medium" \| "large"/);
   assert.match(page, /데스크톱 캐릭터 표시 설정/);
   assert.match(page, /캐릭터 크기/);
@@ -280,6 +282,12 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /records\.some\(\(record\) => record\.date === today\) \? today/);
   assert.match(page, /syncedUntilMidnight/);
   assert.match(page, /자정까지 오늘 TODO와 동기화 중/);
+  assert.doesNotMatch(page, /오늘 해낸 일은 \$\{summarize/);
+  assert.doesNotMatch(page, /아직 남은 일정은 \$\{summarize/);
+  assert.match(page, /남은 일은 내일로 가볍게 건넸어/);
+  assert.match(page, /애쓴 만큼 충분해/);
+  assert.match(page, /reflection\?\.note \|\| selected\.note/);
+  assert.match(page, /reflection\?\.headline \|\| selected\.headline/);
   assert.match(styles, /Carryovers wait for the user/);
   assert.match(styles, /\.carryover-inbox/);
   assert.match(mate, /오늘도 네 편이야 🌿/);
