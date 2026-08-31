@@ -87,6 +87,28 @@ const koreanCount = (value: number) => KOREAN_COUNTS[value] || String(value);
 const koreanOrdinal = (value: number) => KOREAN_ORDINALS[value] || `${value}번째`;
 const humanizeCountPhrases = (text = "") => text.replace(/([1-5])가지/g, (_, value: string) => `${koreanCount(Number(value))} 가지`);
 
+const EMPTY_DAY_ENCOURAGEMENTS = [
+  "아무것도 적지 않은 날에도, 너는 충분히 잘 살아냈어.",
+  "조용히 지나간 하루도 네 시간으로 다정하게 남아 있어.",
+  "기록하지 못한 마음까지도 오늘도는 네 편이야.",
+  "빈칸은 부족함이 아니라, 잠시 숨을 고른 자리일 수 있어.",
+  "눈에 보이는 성취가 없어도 애쓴 시간은 사라지지 않아.",
+  "무사히 하루를 건넌 것만으로도 충분히 소중한 일이야.",
+  "천천히 흘러간 날도 너만의 속도로 잘 지나온 하루야.",
+  "기억나지 않는 작은 노력도 분명 너를 여기까지 데려왔어.",
+  "멈춘 것처럼 보인 날에도 마음은 조금씩 앞으로 가고 있었어.",
+  "오늘을 채우지 못했어도 너의 하루가 비어 있던 건 아니야.",
+  "잘 해내지 않아도 괜찮아. 그날의 너도 충분히 애썼어.",
+  "평범하게 지나온 하루도 돌아보면 따뜻한 발자국이야.",
+  "쉼이 필요했던 날이라면, 잘 쉬어준 것도 좋은 선택이야.",
+  "무언가를 남기지 않아도 그날의 너는 그대로 소중해.",
+];
+
+const encouragementForDate = (date: string) => {
+  const seed = Array.from(date).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 3), 0);
+  return EMPTY_DAY_ENCOURAGEMENTS[seed % EMPTY_DAY_ENCOURAGEMENTS.length];
+};
+
 const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfinished"]) => {
   const source = [...done, ...unfinished.flatMap((item) => [item.title, item.reason, item.carry ? "carry" : "stop"])].join("|");
   const seed = Array.from(source).reduce((total, character, index) => total + character.charCodeAt(0) * (index + 1), 0);
@@ -202,7 +224,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.25.0";
+const APP_VERSION = "1.26.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -907,25 +929,32 @@ function ReviewView({ reviewDate, goals, completeCount, onUpdate, onBack, onFini
 }
 
 function RecordsView({ records, selectedDate, onSelect, selected }: { records: DailyRecord[]; selectedDate: string; onSelect: (date: string) => void; selected?: DailyRecord }) {
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
-  const lastDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const [visibleMonth, setVisibleMonth] = useState(() => {
+    const initial = new Date(`${selectedDate}T12:00:00`);
+    return new Date(initial.getFullYear(), initial.getMonth(), 1);
+  });
+  const visibleYear = visibleMonth.getFullYear();
+  const visibleMonthIndex = visibleMonth.getMonth();
+  const firstDay = new Date(visibleYear, visibleMonthIndex, 1).getDay();
+  const lastDate = new Date(visibleYear, visibleMonthIndex + 1, 0).getDate();
   const calendar = [...Array(firstDay).fill(null), ...Array.from({ length: lastDate }, (_, index) => index + 1)];
   const recordDates = new Set(records.map((record) => record.date));
   const reflection = selected ? buildCompanionReflection(selected.done, selected.unfinished) : undefined;
-  const fullDate = (day: number) => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const fullDate = (day: number) => `${visibleYear}-${String(visibleMonthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const selectedDateLabel = new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selectedDate}T12:00:00`));
+  const moveMonth = (offset: -1 | 1) => setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
   return (
     <section className="records-view">
       <div className="records-head"><p>나의 하루들</p><h1>해낸 날이<br />이만큼이나 쌓였어.</h1></div>
       <div className="records-layout">
         <article className="calendar-card">
-          <div className="calendar-head"><h2>{now.getFullYear()}<span>{now.getMonth() + 1}월</span></h2><div><button type="button" aria-label="이전 달">‹</button><button type="button" aria-label="다음 달">›</button></div></div>
+          <div className="calendar-head"><h2>{visibleYear}<span>{visibleMonthIndex + 1}월</span></h2><div><button type="button" aria-label="이전 달" onClick={() => moveMonth(-1)}>‹</button><button type="button" aria-label="다음 달" onClick={() => moveMonth(1)}>›</button></div></div>
           <div className="weekdays">{["일", "월", "화", "수", "목", "금", "토"].map((day) => <span key={day}>{day}</span>)}</div>
-          <div className="calendar-grid">{calendar.map((day, index) => day ? <button type="button" key={day} className={`${recordDates.has(fullDate(day)) ? "has-record" : ""} ${selectedDate === fullDate(day) ? "selected" : ""}`} onClick={() => recordDates.has(fullDate(day)) && onSelect(fullDate(day))}><span>{day}</span>{recordDates.has(fullDate(day)) && <i />}</button> : <span key={`empty-${index}`} />)}</div>
+          <div className="calendar-grid">{calendar.map((day, index) => day ? <button type="button" key={day} className={`${recordDates.has(fullDate(day)) ? "has-record" : ""} ${selectedDate === fullDate(day) ? "selected" : ""}`} onClick={() => onSelect(fullDate(day))} aria-label={`${visibleMonthIndex + 1}월 ${day}일${recordDates.has(fullDate(day)) ? ", 기록 있음" : ", 기록 없음"}`}><span>{day}</span>{recordDates.has(fullDate(day)) && <i />}</button> : <span key={`empty-${index}`} />)}</div>
           <p className="calendar-note"><i /> 오늘의 기록을 남긴 날</p>
         </article>
 
-        <article className="daily-card">
+        <article className="daily-card" aria-live="polite">
           {selected ? <>
             <div className="daily-card-head"><div><p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date(`${selected.date}T12:00:00`))}</p><h2>{humanizeCountPhrases(reflection?.headline || selected.headline)}</h2></div><div className="record-head-side">{selected.syncedUntilMidnight && selected.date === dateKey() && <small>자정까지 오늘 TODO와 동기화 중</small>}<span className="mini-mate">•ᴗ•</span></div></div>
             <div className="record-section"><p>✨ 오늘 해낸 일</p><ul>{selected.done.map((item) => <li className={selected.extraDone?.includes(item) ? "remembered-done" : ""} key={item}><span>✓</span><div><strong>{item}</strong>{selected.extraDone?.includes(item) && <small>목표 밖에서 기억난 일</small>}</div></li>)}</ul></div>
@@ -938,7 +967,7 @@ function RecordsView({ records, selectedDate, onSelect, selected }: { records: D
               </article>)}</div>
             </div>}
             <blockquote><span>“</span>{humanizeCountPhrases(reflection?.note || selected.note)}<small>— 네 목표 메이트가</small></blockquote>
-          </> : <div className="no-record"><span>☾</span><h2>아직 기록이 없어요</h2><p>오늘을 돌아보면 첫 카드가 생겨요.</p></div>}
+          </> : <div className="no-record"><span aria-hidden="true">✦</span><small>{selectedDateLabel}</small><h2>{encouragementForDate(selectedDate)}</h2><p>기록이 없는 날도 너의 하루에서 빠지지 않아요.</p></div>}
         </article>
       </div>
     </section>

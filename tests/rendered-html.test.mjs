@@ -184,7 +184,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /characterSize:\s*todayState\.settings\?\.characterSize/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.25\.0"/);
+  assert.match(packageJson, /"version": "1\.26\.0"/);
   assert.match(packageJson, /"identity": "-"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
@@ -271,7 +271,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.25\.0"/);
+  assert.match(page, /APP_VERSION = "1\.26\.0"/);
   assert.match(page, /characterSize: "small" \| "medium" \| "large"/);
   assert.match(page, /데스크톱 캐릭터 표시 설정/);
   assert.match(page, /캐릭터 크기/);
@@ -305,6 +305,14 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(main, /doneGoals\[Math\.floor/);
   assert.match(page, /addDaysToDateKey\(today, -1\)/);
   assert.match(page, /records\.some\(\(record\) => record\.date === today\) \? today/);
+  assert.match(page, /EMPTY_DAY_ENCOURAGEMENTS/);
+  assert.match(page, /encouragementForDate/);
+  assert.match(page, /setVisibleMonth/);
+  assert.match(page, /onClick=\{\(\) => moveMonth\(-1\)\}/);
+  assert.match(page, /onClick=\{\(\) => moveMonth\(1\)\}/);
+  assert.match(page, /onClick=\{\(\) => onSelect\(fullDate\(day\)\)\}/);
+  assert.match(page, /기록이 없는 날도 너의 하루에서 빠지지 않아요/);
+  assert.match(styles, /Every calendar day is selectable/);
   assert.match(page, /syncedUntilMidnight/);
   assert.match(page, /자정까지 오늘 TODO와 동기화 중/);
   assert.doesNotMatch(page, /오늘 해낸 일은 \$\{summarize/);
