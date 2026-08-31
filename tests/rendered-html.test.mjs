@@ -172,7 +172,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /characterSize:\s*todayState\.settings\?\.characterSize/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.23\.1"/);
+  assert.match(packageJson, /"version": "1\.24\.0"/);
   assert.match(packageJson, /"identity": "-"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
@@ -197,6 +197,19 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /carry: direction === "right"/);
   assert.match(page, /oneuldo-pending-carryovers/);
   assert.match(page, /oneuldo-goals-date/);
+  assert.match(page, /oneuldo-missed-review/);
+  assert.match(page, /readMissedReview/);
+  assert.match(page, /writeMissedReview/);
+  assert.match(page, /archiveGoalsWithoutReview/);
+  assert.match(page, /돌아보기를 건너뛴 날이에요/);
+  assert.match(page, /돌아보기를 놓쳤어요/);
+  assert.match(page, /지금 돌아보기/);
+  assert.match(page, /기록만 남기기/);
+  assert.match(page, /체크 상태 그대로 저장/);
+  assert.match(page, /reviewDate=\{activeDate\}/);
+  assert.match(page, /놓친 날의 기록/);
+  assert.match(styles, /Preserve an unreviewed day before the TODO list rolls over/);
+  assert.match(styles, /\.missed-review-dialog/);
   assert.match(page, /getDueCarryovers/);
   assert.match(page, /dueCarryovers/);
   assert.match(page, /오늘에 추가/);
@@ -246,7 +259,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.23\.1"/);
+  assert.match(page, /APP_VERSION = "1\.24\.0"/);
   assert.match(page, /characterSize: "small" \| "medium" \| "large"/);
   assert.match(page, /데스크톱 캐릭터 표시 설정/);
   assert.match(page, /캐릭터 크기/);

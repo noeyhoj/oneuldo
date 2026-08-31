@@ -30,6 +30,11 @@ type PendingCarryover = {
   targetDate: string;
 };
 
+type MissedReview = {
+  date: string;
+  goals: Goal[];
+};
+
 type Settings = {
   morning: string;
   evening: string;
@@ -53,6 +58,19 @@ const readPendingCarryovers = (): PendingCarryover[] => {
     const parsed = JSON.parse(localStorage.getItem("oneuldo-pending-carryovers") || "[]");
     return Array.isArray(parsed) ? parsed : [];
   } catch { return []; }
+};
+
+const MISSED_REVIEW_STORAGE_KEY = "oneuldo-missed-review";
+const readMissedReview = (): MissedReview | null => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MISSED_REVIEW_STORAGE_KEY) || "null") as MissedReview | null;
+    return parsed?.date && Array.isArray(parsed.goals) && parsed.goals.length ? parsed : null;
+  } catch { return null; }
+};
+
+const writeMissedReview = (missed: MissedReview | null) => {
+  if (missed) localStorage.setItem(MISSED_REVIEW_STORAGE_KEY, JSON.stringify(missed));
+  else localStorage.removeItem(MISSED_REVIEW_STORAGE_KEY);
 };
 
 const getDueCarryovers = (today: string) => readPendingCarryovers().filter((item) => item.targetDate <= today);
@@ -123,6 +141,26 @@ const buildCompanionReflection = (done: string[], unfinished: DailyRecord["unfin
   };
 };
 
+const archiveGoalsWithoutReview = (date: string, goals: Goal[]): DailyRecord => {
+  const done = goals.filter((goal) => goal.done).map((goal) => goal.title);
+  const unfinished = goals.filter((goal) => !goal.done).map((goal) => ({
+    title: goal.title,
+    reason: "돌아보기를 건너뛴 날이에요",
+    note: "",
+    carry: false,
+  }));
+  const reflection = buildCompanionReflection(done, unfinished);
+  return {
+    date,
+    done,
+    extraDone: [],
+    unfinished,
+    headline: reflection.headline,
+    note: reflection.note,
+    syncedUntilMidnight: false,
+  };
+};
+
 const LEGACY_SAMPLE_GOAL_IDS = new Set(["welcome-1", "welcome-2", "welcome-3"]);
 const removeLegacySampleGoals = (goals: Goal[]) => goals.filter((goal) => !LEGACY_SAMPLE_GOAL_IDS.has(goal.id));
 const isLegacySampleRecord = (record: DailyRecord) => {
@@ -164,7 +202,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.23.1";
+const APP_VERSION = "1.24.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -220,6 +258,8 @@ export default function Home() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [onboardingFresh, setOnboardingFresh] = useState(false);
   const [dueCarryovers, setDueCarryovers] = useState<PendingCarryover[]>([]);
+  const [missedReview, setMissedReview] = useState<MissedReview | null>(null);
+  const [reviewingMissedDate, setReviewingMissedDate] = useState<string | null>(null);
 
   /* Local storage is an external client-only source, so hydration intentionally updates state here. */
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -230,25 +270,46 @@ export default function Home() {
     const storedSettings = localStorage.getItem("oneuldo-settings");
     const today = dateKey();
     const due = getDueCarryovers(today);
+    let cleanedRecords: DailyRecord[] = [];
     setDueCarryovers(due);
+    if (storedRecords) {
+      const parsedRecords = JSON.parse(storedRecords) as DailyRecord[];
+      cleanedRecords = removeLegacySampleRecords(Array.isArray(parsedRecords) ? parsedRecords : []);
+      setRecords(cleanedRecords);
+      if (cleanedRecords.length !== parsedRecords.length) localStorage.setItem("oneuldo-records", JSON.stringify(cleanedRecords));
+    }
+
+    const storedMissedReview = readMissedReview();
+    if (storedMissedReview && !cleanedRecords.some((record) => record.date === storedMissedReview.date)) {
+      setMissedReview(storedMissedReview);
+    } else if (storedMissedReview) {
+      writeMissedReview(null);
+    }
+
     if (storedGoals) {
       const parsedGoals = JSON.parse(storedGoals) as Goal[];
       const cleanedGoals = removeLegacySampleGoals(Array.isArray(parsedGoals) ? parsedGoals : []);
       if (cleanedGoals.length !== parsedGoals.length) localStorage.setItem("oneuldo-goals", JSON.stringify(cleanedGoals));
-      if (storedGoalsDate && storedGoalsDate !== today) setGoals([]);
-      else setGoals(cleanedGoals);
+      const missedDate = storedGoalsDate && storedGoalsDate < today ? storedGoalsDate : null;
+      const alreadyRecorded = missedDate ? cleanedRecords.some((record) => record.date === missedDate) : false;
+      if (missedDate && cleanedGoals.length && !alreadyRecorded && !storedMissedReview) {
+        const snapshot = { date: missedDate, goals: cleanedGoals };
+        writeMissedReview(snapshot);
+        setMissedReview(snapshot);
+        setGoals([]);
+      } else if (storedGoalsDate === today) {
+        setGoals(cleanedGoals);
+      } else {
+        setGoals([]);
+      }
     } else if (due.length) setGoals([]);
-    if (storedRecords) {
-      const parsedRecords = JSON.parse(storedRecords) as DailyRecord[];
-      const cleanedRecords = removeLegacySampleRecords(Array.isArray(parsedRecords) ? parsedRecords : []);
-      setRecords(cleanedRecords);
-      if (cleanedRecords.length !== parsedRecords.length) localStorage.setItem("oneuldo-records", JSON.stringify(cleanedRecords));
-    }
     if (storedSettings) setSettings(keepTimesInOrder({ ...initialSettings, ...JSON.parse(storedSettings) }));
     const onboarded = localStorage.getItem("oneuldo-onboarded");
     if (!onboarded) {
       setGoals([]);
       setRecords([]);
+      setMissedReview(null);
+      writeMissedReview(null);
       setOnboardingFresh(true);
       setOnboardingOpen(true);
     }
@@ -271,7 +332,12 @@ export default function Home() {
     if (!hydrated) return;
     const rollOverDay = () => {
       const today = dateKey();
-      if (today === activeDate) return;
+      if (today === activeDate || reviewingMissedDate) return;
+      if (goals.length && !records.some((record) => record.date === activeDate) && !missedReview) {
+        const snapshot = { date: activeDate, goals };
+        writeMissedReview(snapshot);
+        setMissedReview(snapshot);
+      }
       const due = getDueCarryovers(today);
       setGoals([]);
       setDueCarryovers(due);
@@ -286,13 +352,21 @@ export default function Home() {
       window.removeEventListener("focus", rollOverDay);
       document.removeEventListener("visibilitychange", rollOverDay);
     };
-  }, [activeDate, hydrated]);
+  }, [activeDate, goals, hydrated, missedReview, records, reviewingMissedDate]);
 
   const completeCount = goals.filter((goal) => goal.done).length;
   const dateLabel = useMemo(() => new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "long" }).format(new Date()), []);
   const reviewedToday = records.some((record) => record.date === activeDate);
   const openRecords = () => {
     const today = dateKey();
+    if (reviewingMissedDate) {
+      const snapshot = { date: reviewingMissedDate, goals };
+      writeMissedReview(snapshot);
+      setMissedReview(snapshot);
+      setReviewingMissedDate(null);
+      setGoals([]);
+      setActiveDate(today);
+    }
     setSelectedDate(records.some((record) => record.date === today) ? today : addDaysToDateKey(today, -1));
     setView("records");
   };
@@ -385,6 +459,43 @@ export default function Home() {
     setMessage(action === "accept" ? alreadyAdded ? "이미 오늘의 목표에 담겨 있어서 한 번만 남겨뒀어." : `“${item.title}”을 오늘의 리듬에 맞게 다시 담았어.` : `“${item.title}”은 오늘 목록에 넣지 않을게. 선택하지 않아도 괜찮아.`);
   };
 
+  const startMissedReview = () => {
+    if (!missedReview) return;
+    setGoals(missedReview.goals);
+    setActiveDate(missedReview.date);
+    setReviewingMissedDate(missedReview.date);
+    setMissedReview(null);
+    setView("review");
+  };
+
+  const archiveMissedReview = () => {
+    if (!missedReview) return;
+    const record = archiveGoalsWithoutReview(missedReview.date, missedReview.goals);
+    setRecords((current) => [...current.filter((item) => item.date !== record.date), record].sort((a, b) => a.date.localeCompare(b.date)));
+    writeMissedReview(null);
+    setMissedReview(null);
+    setReviewingMissedDate(null);
+    setGoals([]);
+    setActiveDate(dateKey());
+    setSelectedDate(record.date);
+    setView("records");
+    setMessage("돌아보지 못한 하루도 사라지지 않게, 체크한 모습 그대로 기록해뒀어 🌿");
+  };
+
+  const returnToMissedReviewPrompt = () => {
+    if (!reviewingMissedDate) {
+      setView("today");
+      return;
+    }
+    const snapshot = { date: reviewingMissedDate, goals };
+    writeMissedReview(snapshot);
+    setMissedReview(snapshot);
+    setReviewingMissedDate(null);
+    setGoals([]);
+    setActiveDate(dateKey());
+    setView("today");
+  };
+
   const finishReview = (rememberedDone: string[]) => {
     const unfinished = goals.filter((goal) => !goal.done).map((goal) => ({ title: goal.title, reason: goal.reason || "이유를 남기지 않았어요", note: goal.note || "", carry: Boolean(goal.carry) }));
     const goalDone = goals.filter((goal) => goal.done).map((goal) => goal.title);
@@ -407,6 +518,14 @@ export default function Home() {
     setRecords((current) => [...current.filter((item) => item.date !== record.date), record].sort((a, b) => a.date.localeCompare(b.date)));
     setSelectedDate(record.date);
     setMessage(extraDone.length ? `목표 밖에서도 ${koreanCount(extraDone.length)} 가지나 더 발견했네. 오늘의 기록에 다정하게 남겨뒀어 ✨` : carryovers.length ? `오늘의 기록을 남겼어. ${koreanCount(carryovers.length)} 가지는 내일 TODO에서 다시 만날게 🌙` : reflection.note);
+    if (reviewingMissedDate === sourceDate) {
+      writeMissedReview(null);
+      setMissedReview(null);
+      setReviewingMissedDate(null);
+      setGoals([]);
+      setActiveDate(dateKey());
+      setDueCarryovers(getDueCarryovers(dateKey()));
+    }
     setView("records");
   };
 
@@ -435,12 +554,12 @@ export default function Home() {
   return (
     <main className={`app-shell theme-${settings.theme} ${!hydrated ? "is-hydrating" : ""} ${onboardingOpen && onboardingFresh ? "is-first-onboarding" : ""}`}>
       <header className="topbar">
-        <button className="brand" type="button" onClick={() => setView("today")} aria-label="오늘도 - 네가 해낸 하루를 기억할게, 홈">
+        <button className="brand" type="button" onClick={returnToMissedReviewPrompt} aria-label="오늘도 - 네가 해낸 하루를 기억할게, 홈">
           <span className="brand-image" aria-hidden="true" />
           <span className="brand-copy"><strong>오늘도</strong><span className="brand-tagline"> - 네가 해낸 하루를 기억할게</span></span>
         </button>
         <nav className="main-nav" aria-label="주요 메뉴">
-          <button className={view === "today" ? "active" : ""} onClick={() => setView("today")} type="button">오늘</button>
+          <button className={view === "today" ? "active" : ""} onClick={returnToMissedReviewPrompt} type="button">오늘</button>
           <button className={view === "records" ? "active" : ""} onClick={openRecords} type="button">내 기록</button>
         </nav>
         <div className="top-actions">
@@ -500,13 +619,43 @@ export default function Home() {
         </section>
       )}
 
-      {view === "review" && <ReviewView goals={goals} completeCount={completeCount} onUpdate={updateGoal} onBack={() => setView("today")} onFinish={finishReview} />}
+      {view === "review" && <ReviewView key={`${activeDate}-${reviewingMissedDate || "today"}`} reviewDate={activeDate} goals={goals} completeCount={completeCount} onUpdate={updateGoal} onBack={returnToMissedReviewPrompt} onFinish={finishReview} />}
 
       {view === "records" && <RecordsView records={records} selectedDate={selectedDate} onSelect={setSelectedDate} selected={selectedRecord} />}
 
       {settingsOpen && <SettingsModal settings={settings} onChange={(nextSettings) => setSettings(keepTimesInOrder(nextSettings))} onClose={() => setSettingsOpen(false)} onRestartGuide={() => { setSettingsOpen(false); setOnboardingFresh(false); setOnboardingOpen(true); }} />}
       {onboardingOpen && <OnboardingGuide settings={settings} onFinish={finishOnboarding} onSkip={skipOnboarding} />}
+      {hydrated && missedReview && !onboardingOpen && <MissedReviewPrompt missed={missedReview} onReview={startMissedReview} onArchive={archiveMissedReview} />}
     </main>
+  );
+}
+
+function MissedReviewPrompt({ missed, onReview, onArchive }: { missed: MissedReview; onReview: () => void; onArchive: () => void }) {
+  useDocumentScrollLock();
+  const completed = missed.goals.filter((goal) => goal.done).length;
+  const isYesterday = missed.date === dateKey(-1);
+  const dayLabel = isYesterday
+    ? "어제"
+    : new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric", weekday: "short" }).format(new Date(`${missed.date}T12:00:00`));
+  return (
+    <div className="missed-review-backdrop" role="presentation">
+      <section className="missed-review-dialog" role="dialog" aria-modal="true" aria-labelledby="missed-review-title">
+        <span className="missed-review-icon" aria-hidden="true">☾</span>
+        <p>{dayLabel}의 기록</p>
+        <h2 id="missed-review-title">{dayLabel} 돌아보기를 놓쳤어요.</h2>
+        <span className="missed-review-copy">괜찮아요. 지금 천천히 돌아보거나,<br />체크한 모습 그대로 기록해둘 수 있어요.</span>
+        <div className="missed-review-summary">
+          <div><strong>{missed.goals.length}</strong><small>적어둔 TODO</small></div>
+          <i aria-hidden="true" />
+          <div><strong>{completed}</strong><small>완료한 일</small></div>
+        </div>
+        <div className="missed-review-preview">{missed.goals.slice(0, 3).map((goal) => <span key={goal.id} className={goal.done ? "done" : ""}><i aria-hidden="true">{goal.done ? "✓" : "○"}</i>{goal.title}</span>)}{missed.goals.length > 3 && <small>외 {missed.goals.length - 3}개</small>}</div>
+        <div className="missed-review-actions">
+          <button type="button" className="archive" onClick={onArchive}><span>기록만 남기기</span><small>체크 상태 그대로 저장</small></button>
+          <button type="button" className="review" onClick={onReview}><span>지금 돌아보기</span><small>카드로 차분히 정리</small></button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -528,7 +677,7 @@ function GoalMate({ message, animal, completed, total, onClick }: { message: str
   );
 }
 
-function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goals: Goal[]; completeCount: number; onUpdate: (id: string, patch: Partial<Goal>) => void; onBack: () => void; onFinish: (rememberedDone: string[]) => void }) {
+function ReviewView({ reviewDate, goals, completeCount, onUpdate, onBack, onFinish }: { reviewDate: string; goals: Goal[]; completeCount: number; onUpdate: (id: string, patch: Partial<Goal>) => void; onBack: () => void; onFinish: (rememberedDone: string[]) => void }) {
   const cards = useMemo<Array<{ type: "done" | "difficult"; goal: Goal } | { type: "empty-done" }>>(() => {
     const doneCards = goals.filter((goal) => goal.done).map((goal) => ({ type: "done" as const, goal }));
     const difficultCards = goals.filter((goal) => !goal.done).map((goal) => ({ type: "difficult" as const, goal }));
@@ -613,8 +762,8 @@ function ReviewView({ goals, completeCount, onUpdate, onBack, onFinish }: { goal
         <button className="back-link" type="button" onClick={onBack}>← &nbsp;오늘로 돌아가기</button>
         <div className="review-heading deck-heading">
           <span className="moon-icon">☾</span>
-          <p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date())} · 오늘의 기록</p>
-          <h1>카드를 넘기며<br /><em>오늘을 가볍게</em> 돌아봐요.</h1>
+          <p>{new Intl.DateTimeFormat("ko-KR", { month: "long", day: "numeric" }).format(new Date(`${reviewDate}T12:00:00`))} · {reviewDate === dateKey() ? "오늘의 기록" : "놓친 날의 기록"}</p>
+          <h1>카드를 넘기며<br /><em>{reviewDate === dateKey() ? "오늘을" : "그날을"} 가볍게</em> 돌아봐요.</h1>
         </div>
 
         <div className="review-stage">
