@@ -26,6 +26,10 @@ const MATE_COMPACT_SIZE = { width: 200, height: 200 };
 const MATE_SPEAKING_SIZE = { width: 268, height: 268 };
 const MATE_SIZE_SCALES = { small: 0.8, medium: 1, large: 1.2 };
 const MATE_CHARACTER_CENTER_INSET = 100;
+// The original presets were tuned on this Mac's 1920 × 1243 logical desktop.
+// Scale against each display's logical bounds so the character keeps the same
+// screen-relative proportions on other Macs and external displays.
+const MATE_REFERENCE_DISPLAY = { width: 1920, height: 1243 };
 
 let mainWindow;
 let mateWindow;
@@ -186,22 +190,41 @@ function endMateDrag() {
   updateMateDrag();
   saveMatePosition();
   mateDragState = undefined;
+  sendMateStatus();
 }
 
-function getMateScale() {
-  return MATE_SIZE_SCALES[todayState.settings?.characterSize] || MATE_SIZE_SCALES.medium;
+function getMateDisplay() {
+  if (mateWindow && !mateWindow.isDestroyed()) {
+    const bounds = mateWindow.getBounds();
+    return screen.getDisplayNearestPoint({ x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 });
+  }
+  const saved = readPrefs().matePosition;
+  const point = saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)
+    ? { x: saved.right, y: saved.bottom }
+    : screen.getCursorScreenPoint();
+  return screen.getDisplayNearestPoint(point);
 }
 
-function scaledMateSize(base) {
-  const scale = getMateScale();
+function getMateScale(display = getMateDisplay()) {
+  const userScale = MATE_SIZE_SCALES[todayState.settings?.characterSize] || MATE_SIZE_SCALES.medium;
+  const displayScale = Math.min(
+    display.bounds.width / MATE_REFERENCE_DISPLAY.width,
+    display.bounds.height / MATE_REFERENCE_DISPLAY.height,
+  );
+  return userScale * displayScale;
+}
+
+function scaledMateSize(base, display = getMateDisplay()) {
+  const scale = getMateScale(display);
   return { width: Math.round(base.width * scale), height: Math.round(base.height * scale) };
 }
 
 function resizeMateWindow(expanded) {
   if (!mateWindow || mateWindow.isDestroyed()) return;
-  const nextScale = getMateScale();
-  const next = scaledMateSize(expanded ? MATE_SPEAKING_SIZE : MATE_COMPACT_SIZE);
   const current = mateWindow.getBounds();
+  const currentDisplay = screen.getDisplayNearestPoint({ x: current.x + current.width / 2, y: current.y + current.height / 2 });
+  const nextScale = getMateScale(currentDisplay);
+  const next = scaledMateSize(expanded ? MATE_SPEAKING_SIZE : MATE_COMPACT_SIZE, currentDisplay);
   if (current.width === next.width && current.height === next.height && mateScale === nextScale) return;
   const characterCenter = {
     x: current.x + current.width - MATE_CHARACTER_CENTER_INSET * mateScale,
@@ -271,8 +294,13 @@ function createMainWindow() {
 
 function createMateWindow() {
   const prefs = readPrefs();
-  const initialMateSize = scaledMateSize(MATE_COMPACT_SIZE);
-  mateScale = getMateScale();
+  const saved = prefs.matePosition;
+  const initialPoint = saved && Number.isFinite(saved.right) && Number.isFinite(saved.bottom)
+    ? { x: saved.right, y: saved.bottom }
+    : screen.getCursorScreenPoint();
+  const initialDisplay = screen.getDisplayNearestPoint(initialPoint);
+  const initialMateSize = scaledMateSize(MATE_COMPACT_SIZE, initialDisplay);
+  mateScale = getMateScale(initialDisplay);
   mateWindow = new BrowserWindow({
     width: initialMateSize.width,
     height: initialMateSize.height,
@@ -359,6 +387,7 @@ function sendMateStatus() {
     cheer: todayState.settings?.cheer || DEFAULT_SETTINGS.cheer,
     animal: todayState.settings?.animal || DEFAULT_SETTINGS.animal,
     characterSize: todayState.settings?.characterSize || DEFAULT_SETTINGS.characterSize,
+    mateScale: getMateScale(),
   });
 }
 

@@ -108,9 +108,10 @@ window.oneuldoMate.onMessage((nextMessage) => {
   if (nextMessage.includes("완료") || nextMessage.includes("해냈")) celebrate();
 });
 
-window.oneuldoMate.onStatus(({ completed, total, theme = "coral", cheer = "가끔", animal = "cat", characterSize = "medium" }) => {
+window.oneuldoMate.onStatus(({ completed, total, theme = "coral", cheer = "가끔", animal = "cat", characterSize = "medium", mateScale }) => {
   const safeAnimal = MATE_ASSETS[animal] ? animal : "cat";
-  const safeScale = MATE_SCALES[characterSize] || MATE_SCALES.medium;
+  const resolvedScale = Number(mateScale);
+  const safeScale = Number.isFinite(resolvedScale) && resolvedScale > 0 ? resolvedScale : MATE_SCALES[characterSize] || MATE_SCALES.medium;
   if (!characterImage.src.endsWith(MATE_ASSETS[safeAnimal])) characterImage.src = MATE_ASSETS[safeAnimal];
   document.body.dataset.animal = safeAnimal;
   document.body.dataset.size = MATE_SCALES[characterSize] ? characterSize : "medium";

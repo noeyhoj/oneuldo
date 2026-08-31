@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, PointerEvent as ReactPointerEvent, RefObject, useEffect, useMemo, useRef, useState } from "react";
+import { DragEvent as ReactDragEvent, FormEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Goal = {
@@ -202,7 +202,7 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.24.0";
+const APP_VERSION = "1.25.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
@@ -260,6 +260,9 @@ export default function Home() {
   const [dueCarryovers, setDueCarryovers] = useState<PendingCarryover[]>([]);
   const [missedReview, setMissedReview] = useState<MissedReview | null>(null);
   const [reviewingMissedDate, setReviewingMissedDate] = useState<string | null>(null);
+  const [draggedGoalId, setDraggedGoalId] = useState<string | null>(null);
+  const [dragOverGoalId, setDragOverGoalId] = useState<string | null>(null);
+  const draggedGoal = useRef<string | null>(null);
 
   /* Local storage is an external client-only source, so hydration intentionally updates state here. */
   /* eslint-disable react-hooks/set-state-in-effect */
@@ -428,6 +431,60 @@ export default function Home() {
     }
   };
 
+  const moveGoalTo = (sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setGoals((current) => {
+      const sourceIndex = current.findIndex((goal) => goal.id === sourceId);
+      const targetIndex = current.findIndex((goal) => goal.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const moveGoalBy = (id: string, direction: -1 | 1) => {
+    setGoals((current) => {
+      const sourceIndex = current.findIndex((goal) => goal.id === id);
+      const targetIndex = sourceIndex + direction;
+      if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= current.length) return current;
+      const next = [...current];
+      [next[sourceIndex], next[targetIndex]] = [next[targetIndex], next[sourceIndex]];
+      return next;
+    });
+    setMessage(direction < 0 ? "이 일을 조금 더 먼저 챙겨둘게." : "오늘의 순서를 가볍게 다시 정리했어.");
+  };
+
+  const startGoalDrag = (event: ReactDragEvent<HTMLButtonElement>, id: string) => {
+    draggedGoal.current = id;
+    setDraggedGoalId(id);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", id);
+  };
+
+  const enterGoalDrag = (event: ReactDragEvent<HTMLDivElement>, targetId: string) => {
+    event.preventDefault();
+    const sourceId = draggedGoal.current;
+    if (!sourceId || sourceId === targetId) return;
+    event.dataTransfer.dropEffect = "move";
+    setDragOverGoalId(targetId);
+    moveGoalTo(sourceId, targetId);
+  };
+
+  const finishGoalDrag = () => {
+    if (draggedGoal.current) setMessage("오늘의 우선순위를 원하는 순서로 바꿨어.");
+    draggedGoal.current = null;
+    setDraggedGoalId(null);
+    setDragOverGoalId(null);
+  };
+
+  const handleGoalHandleKey = (event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    moveGoalBy(id, event.key === "ArrowUp" ? -1 : 1);
+  };
+
   useEffect(() => {
     const handleMenuToggle = (event: Event) => toggleGoal((event as CustomEvent<string>).detail);
     const handleCharacterVisibility = (event: Event) => setSettings((current) => ({ ...current, character: Boolean((event as CustomEvent<boolean>).detail) }));
@@ -593,7 +650,23 @@ export default function Home() {
               </div>
               <div className="goal-list">
                 {goals.map((goal) => (
-                  <div className={`goal-row ${goal.done ? "is-done" : ""}`} key={goal.id}>
+                  <div
+                    className={`goal-row ${goal.done ? "is-done" : ""} ${draggedGoalId === goal.id ? "is-dragging" : ""} ${dragOverGoalId === goal.id ? "is-drag-over" : ""}`}
+                    key={goal.id}
+                    onDragEnter={(event) => enterGoalDrag(event, goal.id)}
+                    onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }}
+                    onDrop={(event) => { event.preventDefault(); finishGoalDrag(); }}
+                  >
+                    <button
+                      className="goal-drag-handle"
+                      type="button"
+                      draggable
+                      onDragStart={(event) => startGoalDrag(event, goal.id)}
+                      onDragEnd={finishGoalDrag}
+                      onKeyDown={(event) => handleGoalHandleKey(event, goal.id)}
+                      aria-label={`${goal.title} 우선순위 변경. 드래그하거나 위아래 화살표 키를 사용하세요.`}
+                      title="드래그해서 우선순위 바꾸기"
+                    ><span aria-hidden="true">⠿</span></button>
                     <button className="check-button" type="button" onClick={() => toggleGoal(goal.id)} aria-label={`${goal.title} ${goal.done ? "미완료로 변경" : "완료"}`}>
                       <span aria-hidden="true">{goal.done ? "✓" : ""}</span>
                     </button>
