@@ -125,6 +125,10 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(page, /오늘도 - 네가 해낸 하루를 기억할게/);
   assert.match(styles, /\.brand:focus,\.brand:focus-visible\{outline:none;box-shadow:none\}/);
   assert.match(page, /className="bug-report-link"/);
+  assert.match(page, /LOCAL_STORAGE_PATH = "~\/Library\/Application Support\/oneuldo\/Local Storage\/leveldb"/);
+  assert.match(page, /className="storage-location"/);
+  assert.match(page, /데이터 저장 위치/);
+  assert.match(styles, /\.storage-location code/);
   assert.match(page, /mailto:\$\{BUG_REPORT_EMAIL\}/);
   assert.match(page, /dryzero0@gmail\.com/);
   assert.match(page, /\[발생한 문제\]/);
@@ -184,7 +188,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.match(main, /characterSize:\s*todayState\.settings\?\.characterSize/);
   assert.match(renderer, /createRoot/);
   assert.match(packageJson, /"desktop:dist"/);
-  assert.match(packageJson, /"version": "1\.26\.0"/);
+  assert.match(packageJson, /"version": "1\.27\.0"/);
   assert.match(packageJson, /"identity": "-"/);
   assert.match(packageJson, /"afterPack": "\.\/electron\/after-pack\.cjs"/);
   assert.match(page, /oneuldo-onboarded/);
@@ -271,7 +275,7 @@ test("includes the native macOS companion and offline renderer", async () => {
   assert.doesNotMatch(page, /wheel-notch/);
   assert.match(page, /value: "21:00"/);
   assert.match(page, /첫 시작 가이드 다시 보기/);
-  assert.match(page, /APP_VERSION = "1\.26\.0"/);
+  assert.match(page, /APP_VERSION = "1\.27\.0"/);
   assert.match(page, /characterSize: "small" \| "medium" \| "large"/);
   assert.match(page, /데스크톱 캐릭터 표시 설정/);
   assert.match(page, /캐릭터 크기/);

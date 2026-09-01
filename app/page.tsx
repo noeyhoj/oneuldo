@@ -224,8 +224,9 @@ const goalAwareMateCheers = (goals: Goal[]) => {
     openGoal && `“${openGoal.title}”도 오늘의 속도에 맞춰 한 걸음씩 가보자.`,
   ].filter((message): message is string => Boolean(message));
 };
-const APP_VERSION = "1.26.0";
+const APP_VERSION = "1.27.0";
 const BUG_REPORT_EMAIL = "dryzero0@gmail.com";
+const LOCAL_STORAGE_PATH = "~/Library/Application Support/oneuldo/Local Storage/leveldb";
 const BUG_REPORT_MAILTO = `mailto:${BUG_REPORT_EMAIL}?subject=${encodeURIComponent(`[오늘도 ${APP_VERSION}] 버그 제보`)}&body=${encodeURIComponent(`안녕하세요. 오늘도 앱을 사용하다 발견한 문제를 제보합니다.
 
 • 앱 버전: ${APP_VERSION}
@@ -1040,6 +1041,15 @@ function SettingsModal({ settings, onChange, onClose, onRestartGuide }: { settin
           </div>
         </div>
         <button className="restart-guide" type="button" onClick={onRestartGuide}>✦ &nbsp;첫 시작 가이드 다시 보기</button>
+        <section className="storage-location" aria-labelledby="storage-location-title">
+          <span className="storage-location-icon" aria-hidden="true">⌂</span>
+          <div>
+            <strong id="storage-location-title">데이터 저장 위치</strong>
+            <p>TODO와 회고는 이 Mac에만 저장돼요.</p>
+            <code>{LOCAL_STORAGE_PATH}</code>
+            <small>앱을 업데이트해도 유지되지만, 이 폴더를 지우면 기록도 함께 사라져요.</small>
+          </div>
+        </section>
         <a className="bug-report-link" href={BUG_REPORT_MAILTO} target="_blank" rel="noreferrer">
           <span className="bug-report-icon" aria-hidden="true">✉</span>
           <span><strong>이메일로 버그 제보하기</strong><small>{BUG_REPORT_EMAIL} · 기본 메일 앱에서 작성해요.</small></span>
